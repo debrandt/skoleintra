@@ -23,6 +23,20 @@ class Settings(BaseSettings):
         default="", validation_alias="DATABASE_URL"
     )
 
+    # Notifications — read directly from .env via explicit aliases
+    smtp_host: str = Field(default="", validation_alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, validation_alias="SMTP_PORT")
+    smtp_username: str = Field(default="", validation_alias="SMTP_USERNAME")
+    smtp_password: str = Field(default="", validation_alias="SMTP_PASSWORD")
+    email_from: str = Field(default="", validation_alias="EMAIL_FROM")
+    email_to: str = Field(default="", validation_alias="EMAIL_TO")
+    smtp_use_ssl: bool | None = Field(default=None, validation_alias="SMTP_USE_SSL")
+    smtp_starttls: bool | None = Field(default=None, validation_alias="SMTP_STARTTLS")
+
+    ntfy_url: str = Field(default="", validation_alias="NTFY_URL")
+    ntfy_topic: str = Field(default="", validation_alias="NTFY_TOPIC")
+    ntfy_token: str = Field(default="", validation_alias="NTFY_TOKEN")
+
     # Portal credentials / connection
     hostname: str = ""
     username: str = ""
