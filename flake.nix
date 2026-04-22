@@ -76,7 +76,7 @@
               set -a
               . ./.env
               set +a
-            fi    
+            fi
 
             echo "skoleintra dev shell ready"
             echo "Python: $(python --version)"
