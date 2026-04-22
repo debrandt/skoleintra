@@ -71,6 +71,13 @@
 
           shellHook = ''
             export PYTHONPATH=$PWD:$PYTHONPATH
+
+            if [ -f .env ]; then
+              set -a
+              . ./.env
+              set +a
+            fi    
+
             echo "skoleintra dev shell ready"
             echo "Python: $(python --version)"
             echo "Run the CLI: nix run . -- <command>"
