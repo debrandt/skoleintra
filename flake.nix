@@ -74,6 +74,7 @@
 
             echo "skoleintra dev shell ready"
             echo "Python: $(python --version)"
+            echo "Initialize albemic by upgrading head: alembic upgrade head"
             echo "Run the CLI: nix run . -- <command>"
           '';
         };
