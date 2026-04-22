@@ -21,6 +21,25 @@ def _configure_logging(debug: bool) -> None:
         logging.getLogger("requests").setLevel(logging.WARNING)
 
 
+def _cmd_migrate(args: argparse.Namespace) -> int:
+    from alembic.config import Config
+    from alembic import command as alembic_command
+    from skoleintra.settings import get_settings
+
+    settings = get_settings()
+    if not settings.database_url:
+        logging.error("Required environment variable not set: DATABASE_URL")
+        return 1
+
+    logging.info("Running database migrations…")
+    cfg = Config()
+    cfg.set_main_option("script_location", "skoleintra.db:migrations")
+    cfg.set_main_option("sqlalchemy.url", settings.database_url)
+    alembic_command.upgrade(cfg, "head")
+    logging.info("Migrations complete.")
+    return 0
+
+
 def _cmd_scrape(args: argparse.Namespace) -> int:
     from skoleintra.db import init_db
     from skoleintra.scraper import run_scrape
@@ -66,6 +85,8 @@ def main() -> None:
 
     sub = parser.add_subparsers(dest="command")
 
+    sub.add_parser("migrate", help="Apply database migrations (alembic upgrade head)")
+
     scrape_p = sub.add_parser("scrape", help="Run scraper once")
     scrape_p.add_argument(
         "--debug",
@@ -99,7 +120,9 @@ def main() -> None:
     debug = getattr(args, "debug", False)
     _configure_logging(debug)
 
-    if args.command == "scrape":
+    if args.command == "migrate":
+        sys.exit(_cmd_migrate(args))
+    elif args.command == "scrape":
         sys.exit(_cmd_scrape(args))
     elif args.command == "notify":
         try:
