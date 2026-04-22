@@ -1,39 +1,25 @@
-import os
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 
-# Import models
 from skoleintra.db.models import Base
-target_metadata = Base.metadata
+from skoleintra.settings import get_settings
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-# get database url from env
-config.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
-
 # Interpret the config file for Python logging.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Import our models so that autogenerate can detect schema changes
-from skoleintra.db.models import Base  # noqa: E402
-from skoleintra.settings import get_settings  # noqa: E402
-
 target_metadata = Base.metadata
 
-# Allow DATABASE_URL env var to override the ini-file value
-database_url = os.environ.get("DATABASE_URL")
-if database_url:
-    config.set_main_option("sqlalchemy.url", database_url)
-else:
-    settings_url = get_settings().database_url
-    if settings_url:
-        config.set_main_option("sqlalchemy.url", settings_url)
+settings_url = get_settings().database_url
+if settings_url:
+    config.set_main_option("sqlalchemy.url", settings_url)
 
 
 def run_migrations_offline() -> None:
