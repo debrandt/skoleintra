@@ -86,3 +86,15 @@ class TestMsgToScrapedItem:
         assert len(item.attachments) == 1
         assert item.attachments[0].url == "https://example.com/file.pdf"
         assert item.attachments[0].filename == "file.pdf"
+
+    def test_html_entities_decoded_for_storage(self):
+        msg = self._base_msg(
+            Subject="M&oslash;de med for&aelig;ldre",
+            SenderName="P&aelig;dagog&nbsp;Anne",
+            BaseText="<p>Velkommen&nbsp;til m&oslash;det</p>",
+        )
+        item = _msg_to_scraped_item(msg, thread_id="t1")
+        assert item is not None
+        assert item.title == "Møde med forældre"
+        assert item.sender == "Pædagog Anne"
+        assert "Velkommen til mødet" in item.body_html

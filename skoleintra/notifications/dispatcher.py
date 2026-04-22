@@ -101,6 +101,14 @@ def dispatch_notifications(limit: int = 50, dry_run: bool = False, debug: bool =
 
         for item, settings in pending:
             result.processed += 1
+            sent_at = _sent_at_for_item(item)
+
+            if debug:
+                print(
+                    "notify: queue "
+                    f"item_id={item.id} sent_at={sent_at.isoformat() if sent_at else 'unknown'} "
+                    f"title={_clean_text(item.title, default='(untitled)')}"
+                )
 
             email_enabled = bool(settings.email_enabled) if settings else True
             ntfy_enabled = bool(settings.ntfy_enabled) if settings else True
@@ -217,14 +225,18 @@ def _load_pending_items(session: Session, limit: int) -> list[tuple[Item, Notifi
     )
     rows = list(session.execute(stmt).all())
     fallback_max = datetime.max.replace(tzinfo=timezone.utc)
-    rows.sort(
-        key=lambda row: (
-            _sent_at_for_item(row[0]) is None,
-            _sent_at_for_item(row[0]) or fallback_max,
-            row[0].id,
+
+    decorated: list[tuple[datetime | None, tuple[Item, NotificationSetting | None]]] = [
+        (_sent_at_for_item(row[0]), row) for row in rows
+    ]
+    decorated.sort(
+        key=lambda entry: (
+            entry[0] is None,
+            entry[0] or fallback_max,
+            entry[1][0].id,
         )
     )
-    return rows[:limit]
+    return [row for _, row in decorated[:limit]]
 
 
 def _get_notify_state(item: Item) -> dict[str, bool]:
@@ -446,17 +458,17 @@ def _format_mobile_date(iso_value: str) -> str:
 
 
 def _sent_at_for_item(item: Item) -> datetime | None:
+    if isinstance(item.raw_json, dict):
+        raw_date = item.raw_json.get("SentReceivedDateText")
+        if isinstance(raw_date, str):
+            parsed = _parse_portal_datetime(raw_date)
+            if parsed is not None:
+                return parsed
+
     if item.date is not None:
         return item.date
 
-    if not isinstance(item.raw_json, dict):
-        return None
-
-    raw_date = item.raw_json.get("SentReceivedDateText")
-    if not isinstance(raw_date, str):
-        return None
-
-    return _parse_portal_datetime(raw_date)
+    return None
 
 
 def _parse_portal_datetime(raw: str) -> datetime | None:
