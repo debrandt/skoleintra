@@ -24,16 +24,15 @@ def _cmd_scrape(args: argparse.Namespace) -> int:
 
     settings = get_settings()
 
-    missing = [
-        name
-        for name, val in [
-            ("DATABASE_URL", settings.database_url),
-            ("SKOLEINTRA_HOSTNAME", settings.hostname),
-            ("SKOLEINTRA_USERNAME", settings.username),
-            ("SKOLEINTRA_PASSWORD", settings.password),
-        ]
-        if not val
-    ]
+    missing: list[str] = []
+    if not settings.database_url:
+        missing.append("DATABASE_URL")
+    if not settings.hostname:
+        missing.append("SKOLEINTRA_HOSTNAME")
+    if not settings.username:
+        missing.append("SKOLEINTRA_USERNAME")
+    if not settings.password:
+        missing.append("SKOLEINTRA_PASSWORD")
     if missing:
         for name in missing:
             logging.error("Required environment variable not set: %s", name)
@@ -60,12 +59,6 @@ def _cmd_scrape(args: argparse.Namespace) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="skoleintra")
-    parser.add_argument(
-        "--debug",
-        action="store_true",
-        default=False,
-        help="Enable debug logging and save failure artifacts to state_dir",
-    )
 
     sub = parser.add_subparsers(dest="command")
 
