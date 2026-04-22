@@ -1,0 +1,125 @@
+"""Scraper orchestration.
+
+``run_scrape()`` is the single entry-point called by the CLI ``scrape``
+command.  It:
+
+1. Builds a :class:`~skoleintra.scraper.session.PortalSession`.
+2. Logs in to the portal.
+3. Discovers children.
+4. For each child, runs all enabled page scrapers.
+5. Upserts results into the database.
+6. Prints a run summary.
+"""
+
+import logging
+from dataclasses import dataclass, field
+
+from skoleintra.db import session_scope
+from skoleintra.db.upsert import upsert_attachment, upsert_child, upsert_item
+from skoleintra.scraper.children import get_children
+from skoleintra.scraper.login import login
+from skoleintra.scraper.pages import messages as messages_scraper
+from skoleintra.scraper.session import PortalSession
+from skoleintra.settings import Settings
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ScrapeResult:
+    children_found: int = 0
+    items_new: int = 0
+    items_updated: int = 0
+    attachments: int = 0
+    errors: list[str] = field(default_factory=list)
+
+
+def run_scrape(settings: Settings, debug: bool = False) -> ScrapeResult:
+    """Run a full scrape cycle.
+
+    Parameters
+    ----------
+    settings:
+        Populated :class:`~skoleintra.settings.Settings` instance.
+    debug:
+        When *True*, save the failure HTML to ``state_dir`` on errors.
+
+    Returns
+    -------
+    ScrapeResult
+        Summary counts for the run.
+    """
+    result = ScrapeResult()
+
+    portal = PortalSession(
+        hostname=settings.hostname,
+        state_dir=settings.state_dir,
+    )
+
+    # ------------------------------------------------------------------
+    # Login
+    # ------------------------------------------------------------------
+    logger.info("Logging in to %s (login_type=%s)", settings.hostname, settings.login_type)
+    try:
+        index_soup = login(
+            portal,
+            username=settings.username,
+            password=settings.password,
+            login_type=settings.login_type,
+        )
+    except Exception as exc:
+        msg = f"Login failed: {exc}"
+        logger.error(msg)
+        result.errors.append(msg)
+        return result
+
+    # ------------------------------------------------------------------
+    # Discover children
+    # ------------------------------------------------------------------
+    children = get_children(portal, index_soup)
+    result.children_found = len(children)
+    if not children:
+        result.errors.append("No children found on the index page")
+        return result
+
+    # ------------------------------------------------------------------
+    # Scrape each child
+    # ------------------------------------------------------------------
+    with session_scope() as db_session:
+        for child_name, child_url_prefix in sorted(children.items()):
+            logger.info("Processing child: %s", child_name)
+            child_obj = upsert_child(db_session, child_name, settings.hostname)
+
+            # Messages
+            try:
+                scraped_items = messages_scraper.scrape(portal, child_url_prefix)
+            except Exception as exc:
+                msg = f"[{child_name}] messages scraper failed: {exc}"
+                logger.error(msg)
+                result.errors.append(msg)
+                if debug:
+                    portal.save_debug_artifact(
+                        f"{child_name}_messages_error.html", str(exc)
+                    )
+                continue
+
+            for scraped in scraped_items:
+                try:
+                    item_obj, is_new = upsert_item(db_session, child_obj, scraped)
+                    if is_new:
+                        result.items_new += 1
+                        logger.info(
+                            "[%s] New %s: %s", child_name, scraped.type, scraped.title
+                        )
+                    else:
+                        result.items_updated += 1
+
+                    for att in scraped.attachments:
+                        upsert_attachment(db_session, item_obj, att.filename, att.url)
+                        result.attachments += 1
+                except Exception as exc:
+                    msg = f"[{child_name}] DB upsert failed for {scraped.external_id}: {exc}"
+                    logger.error(msg)
+                    result.errors.append(msg)
+
+    return result
