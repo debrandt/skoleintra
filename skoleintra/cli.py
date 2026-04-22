@@ -1,4 +1,8 @@
 import argparse
+
+from sqlalchemy.exc import OperationalError
+
+from skoleintra.notifications import dispatch_notifications
 import logging
 import sys
 
@@ -70,6 +74,23 @@ def main() -> None:
         help="Enable debug logging and save failure artifacts to state_dir",
     )
 
+    notify = sub.add_parser("notify", help="Send pending notifications")
+    notify.add_argument(
+        "--limit",
+        type=int,
+        default=50,
+        help="Maximum number of pending items to process (default: 50)",
+    )
+    notify.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview what would be sent without dispatching",
+    )
+    notify.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable verbose notification logs",
+    )
     sub.add_parser("web", help="Start web UI")
 
     args = parser.parse_args()
@@ -80,6 +101,27 @@ def main() -> None:
 
     if args.command == "scrape":
         sys.exit(_cmd_scrape(args))
+    elif args.command == "notify":
+        try:
+            result = dispatch_notifications(
+                limit=args.limit,
+                dry_run=args.dry_run,
+                debug=args.debug,
+            )
+        except OperationalError as exc:
+            print(f"notify: database connection failed: {exc}")
+            print("notify: set DATABASE_URL to a reachable Postgres instance")
+            raise SystemExit(2)
+        print(
+            "notify: "
+            f"bootstrap_created={result.bootstrap_created} "
+            f"processed={result.processed} "
+            f"sent={result.sent} "
+            f"skipped={result.skipped} "
+            f"failed={result.failed}"
+        )
+        if result.failed > 0:
+            raise SystemExit(1)
     elif args.command == "web":
         print("web: not yet implemented")
         sys.exit(0)
