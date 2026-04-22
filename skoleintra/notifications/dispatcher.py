@@ -12,9 +12,10 @@ from typing import Callable
 import requests
 from bs4 import BeautifulSoup
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
-from skoleintra.db.models import Item, NotificationSetting
+from skoleintra.blobs.client import download_blob, generate_presigned_url, get_s3_client, guess_content_type
+from skoleintra.db.models import Attachment, Item, NotificationSetting
 from skoleintra.db.session import SessionLocal
 from skoleintra.settings import Settings, get_settings
 
@@ -95,6 +96,7 @@ def dispatch_notifications(limit: int = 50, dry_run: bool = False, debug: bool =
 
         email_cfg = _read_email_config(app_settings)
         ntfy_cfg = _read_ntfy_config(app_settings)
+        s3_client = get_s3_client(app_settings)
 
         if not email_cfg.enabled and not ntfy_cfg.enabled:
             print("notify: no channels configured; set SMTP_*/NTFY_* values in .env")
@@ -151,7 +153,10 @@ def dispatch_notifications(limit: int = 50, dry_run: bool = False, debug: bool =
 
             if pending_email:
                 ok, err = _with_retries(
-                    lambda: _send_email(item=item, cfg=email_cfg),
+                    lambda: _send_email(
+                        item=item, cfg=email_cfg,
+                        s3_client=s3_client, settings=app_settings,
+                    ),
                     action=f"email item_id={item.id}",
                 )
                 if not ok:
@@ -162,7 +167,10 @@ def dispatch_notifications(limit: int = 50, dry_run: bool = False, debug: bool =
 
             if pending_ntfy and ntfy_topic:
                 ok, err = _with_retries(
-                    lambda: _send_ntfy(item=item, cfg=ntfy_cfg, topic=ntfy_topic),
+                    lambda: _send_ntfy(
+                        item=item, cfg=ntfy_cfg, topic=ntfy_topic,
+                        s3_client=s3_client, settings=app_settings,
+                    ),
                     action=f"ntfy item_id={item.id}",
                 )
                 if not ok:
@@ -222,6 +230,7 @@ def _load_pending_items(session: Session, limit: int) -> list[tuple[Item, Notifi
         .outerjoin(NotificationSetting, NotificationSetting.type == Item.type)
         .where(Item.notify_sent.is_(False))
         .order_by(Item.id.asc())
+        .options(selectinload(Item.attachments))
     )
     rows = list(session.execute(stmt).all())
     fallback_max = datetime.max.replace(tzinfo=timezone.utc)
@@ -283,7 +292,7 @@ def _read_ntfy_config(settings: Settings) -> NtfyConfig:
     )
 
 
-def _send_email(item: Item, cfg: EmailConfig) -> None:
+def _send_email(item: Item, cfg: EmailConfig, s3_client=None, settings: Settings | None = None) -> None:
     if not cfg.enabled:
         raise RuntimeError("email channel is not configured")
 
@@ -292,6 +301,20 @@ def _send_email(item: Item, cfg: EmailConfig) -> None:
     msg["To"] = ", ".join(cfg.recipients)
     msg["Subject"] = _subject_for(item)
     msg.set_content(_plain_text_for(item))
+
+    if s3_client is not None and settings is not None:
+        for att in item.attachments:
+            if att.blob_key:
+                try:
+                    data = download_blob(s3_client, settings.blob_s3_bucket, att.blob_key)
+                    content_type = att.content_type or guess_content_type(att.filename)
+                    maintype, _, subtype = content_type.partition("/")
+                    msg.add_attachment(data, maintype=maintype, subtype=subtype, filename=att.filename)
+                except Exception as exc:
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        "Could not attach blob %s to email: %s", att.blob_key, exc
+                    )
 
     if cfg.use_ssl:
         server: smtplib.SMTP | smtplib.SMTP_SSL = smtplib.SMTP_SSL(cfg.host, cfg.port, timeout=30)
@@ -313,7 +336,7 @@ def _send_email(item: Item, cfg: EmailConfig) -> None:
             pass
 
 
-def _send_ntfy(item: Item, cfg: NtfyConfig, topic: str) -> None:
+def _send_ntfy(item: Item, cfg: NtfyConfig, topic: str, s3_client=None, settings: Settings | None = None) -> None:
     if not cfg.url:
         raise RuntimeError("ntfy url is missing")
 
@@ -325,6 +348,25 @@ def _send_ntfy(item: Item, cfg: NtfyConfig, topic: str) -> None:
     }
     if cfg.token:
         headers["Authorization"] = f"Bearer {cfg.token}"
+
+    # For photo items, attach the first image blob as a presigned URL so ntfy
+    # displays it inline in the notification.
+    if item.type == "photo" and s3_client is not None and settings is not None:
+        for att in item.attachments:
+            if att.blob_key:
+                try:
+                    presigned = generate_presigned_url(
+                        s3_client, settings.blob_s3_bucket, att.blob_key
+                    )
+                    headers["Attach"] = presigned
+                    headers["Filename"] = att.filename
+                except Exception as exc:
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        "Could not generate presigned URL for ntfy attachment %s: %s",
+                        att.blob_key, exc,
+                    )
+                break  # one photo attachment per notification
 
     response = requests.post(
         url,

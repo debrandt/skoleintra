@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
+from skoleintra.blobs.client import generate_presigned_url, get_s3_client
 from skoleintra.db.models import Attachment, Child, Item, NotificationSetting
 from skoleintra.db.session import SessionLocal
 from skoleintra.notifications.dispatcher import DEFAULT_NOTIFICATION_TYPES
@@ -252,4 +253,28 @@ async def save_notification_settings(request: Request, db: Session = Depends(get
 @router.get("/healthz")
 def healthz() -> dict[str, Any]:
     return {"ok": True}
+
+
+@router.get("/blobs/{attachment_id}")
+def serve_blob(request: Request, attachment_id: int, db: Session = Depends(get_db)):
+    att = db.get(Attachment, attachment_id)
+    if att is None:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+
+    if att.blob_key is None:
+        # Blob not yet downloaded — redirect to the original portal URL
+        if not att.url:
+            raise HTTPException(status_code=404, detail="No URL for attachment")
+        return RedirectResponse(url=att.url, status_code=302)
+
+    settings = request.app.state.settings
+    s3_client = get_s3_client(settings)
+    if s3_client is None:
+        # S3 not configured — fall back to portal URL
+        if not att.url:
+            raise HTTPException(status_code=404, detail="No URL for attachment")
+        return RedirectResponse(url=att.url, status_code=302)
+
+    presigned = generate_presigned_url(s3_client, settings.blob_s3_bucket, att.blob_key)
+    return RedirectResponse(url=presigned, status_code=302)
 

@@ -14,6 +14,8 @@ command.  It:
 import logging
 from dataclasses import dataclass, field
 
+from skoleintra.blobs.client import get_s3_client
+from skoleintra.blobs.download import download_pending_attachments
 from skoleintra.db import session_scope
 from skoleintra.db.upsert import upsert_attachment, upsert_child, upsert_item
 from skoleintra.scraper.children import get_children
@@ -31,6 +33,7 @@ class ScrapeResult:
     items_new: int = 0
     items_updated: int = 0
     attachments: int = 0
+    blobs_uploaded: int = 0
     errors: list[str] = field(default_factory=list)
 
 
@@ -55,6 +58,8 @@ def run_scrape(settings: Settings, debug: bool = False) -> ScrapeResult:
         hostname=settings.hostname,
         state_dir=settings.state_dir,
     )
+
+    s3_client = get_s3_client(settings)
 
     # ------------------------------------------------------------------
     # Login
@@ -121,5 +126,9 @@ def run_scrape(settings: Settings, debug: bool = False) -> ScrapeResult:
                     msg = f"[{child_name}] DB upsert failed for {scraped.external_id}: {exc}"
                     logger.error(msg)
                     result.errors.append(msg)
+
+        result.blobs_uploaded += download_pending_attachments(
+            portal, s3_client, settings, db_session
+        )
 
     return result

@@ -39,7 +39,8 @@
             alembic
             jinja2
             pydantic-settings
-            psycopg # psycopg in nixpkgs
+            psycopg
+            boto3
           ];
         };
       in
@@ -62,6 +63,7 @@
                 jinja2
                 pydantic-settings
                 psycopg
+                boto3
                 # dev tools
                 pip
                 pytest

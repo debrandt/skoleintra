@@ -71,6 +71,7 @@ def _cmd_scrape(args: argparse.Namespace) -> int:
         f"\n  new items: {result.items_new}"
         f"\n  updated  : {result.items_updated}"
         f"\n  attachments: {result.attachments}"
+        f"\n  blobs uploaded: {result.blobs_uploaded}"
     )
     if result.errors:
         print(f"\n  errors ({len(result.errors)}):")

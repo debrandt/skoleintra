@@ -48,6 +48,15 @@ class Settings(BaseSettings):
         default_factory=lambda: os.path.join(os.path.expanduser("~"), ".skoleintra")
     )
 
+    # Blob / S3-compatible object storage (optional).
+    # If BLOB_S3_BUCKET is not set, blob download is silently skipped.
+    blob_s3_endpoint_url: str | None = Field(default=None, validation_alias="BLOB_S3_ENDPOINT_URL")
+    blob_s3_bucket: str | None = Field(default=None, validation_alias="BLOB_S3_BUCKET")
+    blob_s3_access_key_id: str | None = Field(default=None, validation_alias="BLOB_S3_ACCESS_KEY_ID")
+    blob_s3_secret_access_key: str | None = Field(default=None, validation_alias="BLOB_S3_SECRET_ACCESS_KEY")
+    blob_s3_region: str = Field(default="us-east-1", validation_alias="BLOB_S3_REGION")
+    blob_s3_prefix: str = Field(default="skoleintra", validation_alias="BLOB_S3_PREFIX")
+
 
 def get_settings() -> Settings:
     return Settings()
