@@ -24,5 +24,8 @@ dependencies = [
 [project.scripts]
 skoleintra = "skoleintra.cli:main"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["skoleintra"]

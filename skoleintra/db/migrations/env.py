@@ -1,9 +1,7 @@
 import os
-
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
+from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 
@@ -19,11 +17,18 @@ config = context.config
 config.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
 
 # Interpret the config file for Python logging.
-# This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# NOTE: do NOT set target_metadata = None here; it breaks --autogenerate
+# Import our models so that autogenerate can detect schema changes
+from skoleintra.db.models import Base  # noqa: E402
+
+target_metadata = Base.metadata
+
+# Allow DATABASE_URL env var to override the ini-file value
+database_url = os.environ.get("DATABASE_URL")
+if database_url:
+    config.set_main_option("sqlalchemy.url", database_url)
 
 
 def run_migrations_offline() -> None:
