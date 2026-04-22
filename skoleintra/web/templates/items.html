@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Items - Skoleintra{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Items</h1>
+  <form method="get" class="toolbar">
+    <input type="text" name="q" value="{{ filters.q }}" placeholder="Search title/sender/body">
+
+    <select name="child_id">
+      <option value="">All children</option>
+      {% for child in children %}
+        <option value="{{ child.id }}" {% if filters.child_id == child.id %}selected{% endif %}>{{ child.name }}</option>
+      {% endfor %}
+    </select>
+
+    <select name="type">
+      <option value="">All types</option>
+      {% for tp in item_types %}
+        <option value="{{ tp }}" {% if filters.type == tp %}selected{% endif %}>{{ tp }}</option>
+      {% endfor %}
+    </select>
+
+    <select name="sort">
+      <option value="date_desc" {% if filters.sort == "date_desc" %}selected{% endif %}>Newest first</option>
+      <option value="date_asc" {% if filters.sort == "date_asc" %}selected{% endif %}>Oldest first</option>
+      <option value="title_asc" {% if filters.sort == "title_asc" %}selected{% endif %}>Title A-Z</option>
+      <option value="title_desc" {% if filters.sort == "title_desc" %}selected{% endif %}>Title Z-A</option>
+    </select>
+
+    <label>
+      <input type="checkbox" name="unread" value="true" {% if filters.unread %}checked{% endif %}>
+      Unread only
+    </label>
+
+    <input type="number" name="page_size" min="1" max="100" value="{{ filters.page_size }}">
+
+    <div class="actions" style="grid-column: 1 / -1;">
+      <button type="submit">Apply filters</button>
+      <a class="btn secondary" href="/items">Reset</a>
+      <span class="muted small">{{ pagination.total }} results</span>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  {% if items %}
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Title</th>
+          <th>Sender</th>
+          <th>Date</th>
+          <th>Read</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+          <tr class="{% if not item.is_read %}unread{% endif %}">
+            <td><span class="badge">{{ item.type }}</span></td>
+            <td>
+              <a href="/items/{{ item.id }}">{{ item.title or "(untitled)" }}</a>
+              <div class="muted small">{{ item.child.name if item.child else "-" }}</div>
+            </td>
+            <td>{{ item.sender or "-" }}</td>
+            <td class="small">{{ item.date or "-" }}</td>
+            <td>
+              <form method="post" action="/items/{{ item.id }}/read">
+                <input type="hidden" name="read" value="{% if item.is_read %}false{% else %}true{% endif %}">
+                <button class="secondary" type="submit">
+                  {% if item.is_read %}Mark unread{% else %}Mark read{% endif %}
+                </button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="pagination">
+      {% if pagination.page > 1 %}
+        <a class="btn secondary" href="/items?child_id={{ filters.child_id or '' }}&type={{ filters.type }}&unread={{ 'true' if filters.unread else '' }}&q={{ filters.q }}&sort={{ filters.sort }}&page={{ pagination.page - 1 }}&page_size={{ filters.page_size }}">Previous</a>
+      {% endif %}
+      <span class="small">Page {{ pagination.page }} / {{ pagination.pages }}</span>
+      {% if pagination.page < pagination.pages %}
+        <a class="btn secondary" href="/items?child_id={{ filters.child_id or '' }}&type={{ filters.type }}&unread={{ 'true' if filters.unread else '' }}&q={{ filters.q }}&sort={{ filters.sort }}&page={{ pagination.page + 1 }}&page_size={{ filters.page_size }}">Next</a>
+      {% endif %}
+    </div>
+  {% else %}
+    <p class="muted">No matching items.</p>
+  {% endif %}
+</section>
+{% endblock %}

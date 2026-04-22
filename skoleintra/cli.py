@@ -1,4 +1,5 @@
 import argparse
+import os
 
 from sqlalchemy.exc import OperationalError
 
@@ -112,7 +113,14 @@ def main() -> None:
         action="store_true",
         help="Enable verbose notification logs",
     )
-    sub.add_parser("web", help="Start web UI")
+    web = sub.add_parser("web", help="Start web UI")
+    web.add_argument("--host", default="127.0.0.1", help="Host bind address")
+    web.add_argument("--port", type=int, default=8000, help="Port to listen on")
+    web.add_argument(
+        "--reload",
+        action="store_true",
+        help="Enable auto-reload for local development",
+    )
 
     args = parser.parse_args()
 
@@ -146,8 +154,27 @@ def main() -> None:
         if result.failed > 0:
             raise SystemExit(1)
     elif args.command == "web":
-        print("web: not yet implemented")
-        sys.exit(0)
+        from skoleintra.db import init_db
+        from skoleintra.settings import get_settings
+
+        settings = get_settings()
+        if not settings.database_url:
+            print("web: DATABASE_URL is required")
+            sys.exit(2)
+
+        init_db(settings.database_url)
+
+        import uvicorn
+
+        workers = 1 if args.reload else max(1, int(os.getenv("WEB_CONCURRENCY", "1")))
+        uvicorn.run(
+            "skoleintra.web:create_app",
+            factory=True,
+            host=args.host,
+            port=args.port,
+            reload=args.reload,
+            workers=workers,
+        )
     else:
         parser.print_help()
         sys.exit(0)

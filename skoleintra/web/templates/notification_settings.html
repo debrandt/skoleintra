@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Notification Settings - Skoleintra{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Notification settings</h1>
+  <p class="muted">Configure which channels are active per item type. Message contents are always sent in full.</p>
+
+  <form method="post">
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Email</th>
+          <th>ntfy</th>
+          <th>ntfy topic override</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in settings %}
+          <tr>
+            <td><span class="badge">{{ row.type }}</span></td>
+            <td>
+              <label>
+                <input type="checkbox" name="email_{{ row.type }}" {% if row.email_enabled %}checked{% endif %}>
+                enabled
+              </label>
+            </td>
+            <td>
+              <label>
+                <input type="checkbox" name="ntfy_{{ row.type }}" {% if row.ntfy_enabled %}checked{% endif %}>
+                enabled
+              </label>
+            </td>
+            <td>
+              <input type="text" name="topic_{{ row.type }}" value="{{ row.ntfy_topic or '' }}" placeholder="uses NTFY_TOPIC when empty">
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="actions">
+      <button type="submit">Save settings</button>
+      <a class="btn secondary" href="/">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

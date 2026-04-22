@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Item {{ item.id }} - Skoleintra{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>{{ item.title or "(untitled)" }}</h1>
+  <p class="small muted">
+    <span class="badge">{{ item.type }}</span>
+    by {{ item.sender or "unknown" }}
+    {% if child %}for {{ child.name }}{% endif %}
+    {% if item.date %}on {{ item.date }}{% endif %}
+  </p>
+
+  <div class="actions">
+    <form method="post" action="/items/{{ item.id }}/read">
+      <input type="hidden" name="read" value="{% if item.is_read %}false{% else %}true{% endif %}">
+      <button class="secondary" type="submit">{% if item.is_read %}Mark unread{% else %}Mark read{% endif %}</button>
+    </form>
+    <a class="btn secondary" href="/items">Back to items</a>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Message body</h2>
+  {% if item.body_html %}
+    <article>{{ item.body_html | safe }}</article>
+  {% else %}
+    <p class="muted">No body text.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Attachments</h2>
+  {% if attachments %}
+    <ul>
+      {% for a in attachments %}
+        <li>
+          {% if a.url %}
+            <a href="{{ a.url }}" target="_blank" rel="noopener noreferrer">{{ a.filename or a.url }}</a>
+          {% else %}
+            {{ a.filename or "(attachment)" }}
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">No attachments.</p>
+  {% endif %}
+</section>
+{% endblock %}
