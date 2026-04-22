@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     DateTime,
     ForeignKey,
@@ -88,7 +89,9 @@ class Attachment(Base):
     )
     filename: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     url: Mapped[str] = mapped_column(Text, nullable=False)
-    local_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    blob_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content_type: Mapped[str | None] = mapped_column(Text, nullable=True)
+    size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

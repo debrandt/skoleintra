@@ -34,11 +34,8 @@
     <ul>
       {% for a in attachments %}
         <li>
-          {% if a.url %}
-            <a href="{{ a.url }}" target="_blank" rel="noopener noreferrer">{{ a.filename or a.url }}</a>
-          {% else %}
-            {{ a.filename or "(attachment)" }}
-          {% endif %}
+          <a href="/blobs/{{ a.id }}" rel="noopener noreferrer">{{ a.filename or a.url }}</a>
+          {% if a.size_bytes %}<span class="muted small">({{ (a.size_bytes / 1024) | round(1) }} KB)</span>{% endif %}
         </li>
       {% endfor %}
     </ul>

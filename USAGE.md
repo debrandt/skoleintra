@@ -313,3 +313,135 @@ Then open `https://<virtualHost>` from any device on your Tailscale network.
 | **Scrape cadence** | 15-minute interval with up to 60 s random jitter. Increase cadence only after confirming portal tolerance. |
 | **Notify cadence** | 15-minute interval, offset ~5 minutes from scrape boot delay so notifications follow shortly after each scrape. |
 | **Logs** | All units log to journald: `journalctl -u skoleintra-* -f` |
+
+---
+
+## Optional: MinIO blob storage for attachments and photos
+
+Skoleintra can download message attachments and photos and store them in any
+S3-compatible object store. MinIO is the easiest self-hosted option on a NixOS
+server. When `BLOB_S3_BUCKET` is not set the blob pipeline is silently skipped
+and everything still works — attachments just link back to the portal URL
+instead of a locally-served file.
+
+### Enable MinIO in your NixOS module
+
+Add the following to `modules/skoleintra.nix` (or a separate
+`modules/minio.nix`) inside the `config` block, alongside the existing
+`systemd.services` entries:
+
+```nix
+# ------------------------------------------------------------------ MinIO
+services.minio = {
+  enable = true;
+  dataDir = [ "/var/lib/minio/data" ];
+  # credentials are read from the environment file below
+  credentialsFile = config.age.secrets.minio-env.path;
+};
+
+age.secrets.minio-env = {
+  file = ../secrets/minio.env.age;
+  owner = "minio";
+};
+```
+
+The MinIO service binds to `127.0.0.1:9000` (API) and `127.0.0.1:9001`
+(console) by default on NixOS. If you want the console reachable over
+Tailscale, add a Caddy virtual host:
+
+```nix
+services.caddy.virtualHosts."minio.your-tailnet.ts.net".extraConfig = ''
+  reverse_proxy localhost:9001
+'';
+```
+
+### Create the MinIO credentials secret
+
+**Plaintext** (encrypt before committing):
+
+```
+MINIO_ROOT_USER=minioadmin
+MINIO_ROOT_PASSWORD=change-me-use-a-long-random-string
+```
+
+Encrypt:
+
+```bash
+agenix -e secrets/minio.env.age
+```
+
+Register the public key in `secrets/secrets.nix`:
+
+```nix
+"minio.env.age".publicKeys = [
+  "ssh-ed25519 AAAA... root@server"
+];
+```
+
+### Create the bucket and an access key
+
+After deploying, create the bucket and a service account key via the MinIO
+console (`https://minio.your-tailnet.ts.net`) or with `mc` (MinIO Client):
+
+```bash
+# Install mc in a nix-shell if not present on the server
+nix-shell -p minio-client
+
+# Alias the local server (run on the server itself or over SSH)
+mc alias set local http://127.0.0.1:9000 minioadmin 'change-me-use-a-long-random-string'
+
+# Create the bucket
+mc mb local/skoleintra
+
+# Create a restricted service account for skoleintra
+mc admin user svcacct add \
+  --access-key skoleintra-access \
+  --secret-key 'another-long-random-string' \
+  local minioadmin
+```
+
+The service account only needs `s3:GetObject`, `s3:PutObject`, and
+`s3:GetObject` on the `skoleintra` bucket. You can scope it further via a
+MinIO policy if desired.
+
+### Add blob settings to your Skoleintra environment secret
+
+Append the following to the plaintext env file before re-encrypting:
+
+```
+BLOB_S3_ENDPOINT_URL=http://127.0.0.1:9000
+BLOB_S3_BUCKET=skoleintra
+BLOB_S3_ACCESS_KEY_ID=skoleintra-access
+BLOB_S3_SECRET_ACCESS_KEY=another-long-random-string
+BLOB_S3_REGION=us-east-1
+BLOB_S3_PREFIX=skoleintra
+```
+
+`BLOB_S3_REGION` is required by boto3 but ignored by MinIO — any value works.
+`BLOB_S3_PREFIX` is the key prefix inside the bucket; the default `skoleintra`
+is fine for a single-tenant setup.
+
+### Verify
+
+After deploying and running a scrape cycle:
+
+```bash
+# Confirm blobs were uploaded (look for "blobs uploaded: N" in output)
+journalctl -u skoleintra-scrape -n 50
+
+# List objects in the bucket
+mc ls local/skoleintra --recursive | head -20
+
+# Open an item with an attachment in the web UI and click the link —
+# it should redirect through a presigned MinIO URL
+```
+
+### Notes
+
+| Topic | Detail |
+|---|---|
+| **Presigned URL expiry** | Default 24 hours. The web UI generates a fresh presigned URL on every `/blobs/{id}` request, so users always get a valid link. |
+| **Graceful fallback** | If MinIO is unreachable or `BLOB_S3_BUCKET` is unset, the web UI falls back to the original portal URL and the scraper continues without uploading blobs. |
+| **Existing attachments** | Blobs are downloaded for any attachment with a null `blob_key`. Running `skoleintra scrape` after enabling MinIO will back-fill all historical attachments on the next cycle. |
+| **Photos** | When a photos scraper is added, photos will use the same pipeline — no additional configuration is needed. ntfy will deliver the first photo as an inline attachment via a presigned URL. |
+
