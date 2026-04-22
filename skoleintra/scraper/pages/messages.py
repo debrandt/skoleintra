@@ -12,6 +12,7 @@ convert every message into a :class:`ScrapedItem`.
 import json
 import logging
 import re
+import html
 from datetime import datetime, timezone
 
 from bs4 import BeautifulSoup
@@ -139,11 +140,11 @@ def _msg_to_scraped_item(msg: dict, thread_id: str) -> ScrapedItem | None:
 
     external_id = f"{thread_id}--{mid}" if thread_id else mid
 
-    subject = msg.get("Subject") or ""
-    sender = msg.get("SenderName") or ""
+    subject = _normalize_text(msg.get("Subject") or "")
+    sender = _normalize_text(msg.get("SenderName") or "")
 
-    base_text = msg.get("BaseText") or ""
-    prev_text = msg.get("PreviousMessagesText") or ""
+    base_text = _normalize_text(msg.get("BaseText") or "")
+    prev_text = _normalize_text(msg.get("PreviousMessagesText") or "")
     body_html = f'<div class="base">{base_text}</div>\n'
     if prev_text:
         body_html += f'<div class="prev">{prev_text}</div>\n'
@@ -153,7 +154,7 @@ def _msg_to_scraped_item(msg: dict, thread_id: str) -> ScrapedItem | None:
     attachments: list[ScrapedAttachment] = []
     for att in msg.get("AttachmentsLinks") or []:
         href = att.get("HrefAttributeValue") or ""
-        text = att.get("Text") or href
+        text = _normalize_text(att.get("Text") or href)
         if href:
             attachments.append(ScrapedAttachment(filename=text, url=href))
 
@@ -217,3 +218,8 @@ def _parse_date(raw: str | None) -> datetime | None:
             continue
     logger.debug("Could not parse date %r", raw)
     return None
+
+
+def _normalize_text(value: str) -> str:
+    """Decode HTML entities and normalize non-breaking spaces for storage."""
+    return html.unescape(value).replace("\xa0", " ")
