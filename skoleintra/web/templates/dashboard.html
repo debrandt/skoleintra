@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Skoleintra{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Dashboard</h1>
+  <p class="muted">Quick snapshot of synced data and pending notification state.</p>
+
+  <div class="grid-3">
+    <div class="metric">
+      <div class="label">Total items</div>
+      <div class="value">{{ total_items }}</div>
+    </div>
+    <div class="metric">
+      <div class="label">Unread items</div>
+      <div class="value">{{ unread_items }}</div>
+    </div>
+    <div class="metric">
+      <div class="label">Pending notifications</div>
+      <div class="value">{{ pending_notifications }}</div>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Latest items</h2>
+  {% if latest_items %}
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Title</th>
+          <th>Child</th>
+          <th>Date</th>
+          <th>State</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in latest_items %}
+          <tr class="{% if not item.is_read %}unread{% endif %}">
+            <td><span class="badge">{{ item.type }}</span></td>
+            <td><a href="/items/{{ item.id }}">{{ item.title or "(untitled)" }}</a></td>
+            <td>{{ item.child.name if item.child else "-" }}</td>
+            <td class="small">{{ item.date or "-" }}</td>
+            <td class="small">{% if item.is_read %}read{% else %}<strong>unread</strong>{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">No items in database yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

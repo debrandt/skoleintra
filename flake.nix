@@ -33,6 +33,7 @@
             beautifulsoup4
             lxml
             fastapi
+            python-multipart
             uvicorn
             sqlalchemy
             alembic
@@ -54,6 +55,7 @@
                 beautifulsoup4
                 lxml
                 fastapi
+                python-multipart
                 uvicorn
                 sqlalchemy
                 alembic
