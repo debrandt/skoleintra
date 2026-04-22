@@ -1,5 +1,4 @@
 import argparse
-import os
 
 from sqlalchemy.exc import OperationalError
 
@@ -113,6 +112,7 @@ def main() -> None:
         action="store_true",
         help="Enable verbose notification logs",
     )
+
     web = sub.add_parser("web", help="Start web UI")
     web.add_argument("--host", default="127.0.0.1", help="Host bind address")
     web.add_argument("--port", type=int, default=8000, help="Port to listen on")
