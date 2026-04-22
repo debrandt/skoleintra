@@ -93,6 +93,10 @@ class Attachment(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
+    __table_args__ = (
+        UniqueConstraint("item_id", "url", name="uq_attachment_item_url"),
+    )
+
     item: Mapped["Item"] = relationship("Item", back_populates="attachments")
 
 
