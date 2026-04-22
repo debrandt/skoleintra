@@ -40,6 +40,6 @@ Skoleintra exists to replace manual logins to ForældreIntra by continuously syn
 
 ## Troubleshooting and known issues
 
-- **Issue encountered:** shell commands in this agent session may hang with no output (including `nix develop -c pytest`), and returned shell IDs may be unreadable.
+- **Issue encountered:** in some Copilot cloud-agent workspace sessions, shell commands may hang with no output (including `nix develop -c pytest`), and returned shell IDs may be unreadable.
   - **Work-around used:** verify command conventions from repository config (`flake.nix`, CI workflow) and continue with file-level changes when command execution is unavailable.
-- If `nix run . -- ...` fails locally, confirm Nix flakes are enabled and run from repo root: `/home/runner/work/skoleintra/skoleintra`.
+- If `nix run . -- ...` fails locally, confirm Nix flakes are enabled and run from the repository root directory.
