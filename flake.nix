@@ -73,9 +73,7 @@
             export PYTHONPATH=$PWD:$PYTHONPATH
             echo "skoleintra dev shell ready"
             echo "Python: $(python --version)"
-            echo "Run the CLI: python -m skoleintra.cli"
-            echo "Install in editable mode: pip install -e . --no-deps"
-            echo "(It is installed with --no-deps since nix handles deps)"
+            echo "Run the CLI: nix run . -- <command>"
           '';
         };
       }
