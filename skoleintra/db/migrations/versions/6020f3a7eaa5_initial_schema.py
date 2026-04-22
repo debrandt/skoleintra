@@ -64,7 +64,8 @@ def upgrade() -> None:
     sa.Column('local_path', sa.Text(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.ForeignKeyConstraint(['item_id'], ['items.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('item_id', 'url', name='uq_attachment_item_url')
     )
     # ### end Alembic commands ###
 

@@ -94,18 +94,14 @@ def upsert_attachment(
     stmt = (
         pg_insert(Attachment)
         .values(item_id=item.id, filename=filename, url=url)
-        .on_conflict_do_nothing()
+        .on_conflict_do_update(
+            constraint="uq_attachment_item_url",
+            set_={"filename": filename},
+        )
         .returning(Attachment.id)
     )
     row = session.execute(stmt).fetchone()
-    if row is not None:
-        att = session.get(Attachment, row[0])
-        assert att is not None
-        return att
-    # Row already existed — fetch it
-    att = session.execute(
-        select(Attachment).where(
-            Attachment.item_id == item.id, Attachment.url == url
-        )
-    ).scalar_one()
+    assert row is not None
+    att = session.get(Attachment, row[0])
+    assert att is not None
     return att

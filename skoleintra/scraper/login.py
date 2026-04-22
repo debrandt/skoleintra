@@ -40,6 +40,25 @@ def _parse_form(html: str | bytes) -> tuple[str, dict[str, str]]:
     return action, data
 
 
+def _looks_like_failed_alm_login(html: str) -> bool:
+    """Best-effort detector for ALM credential rejection pages.
+
+    The portal returns HTTP 200 and renders the login form again on
+    failed ALM login attempts, so status code alone is not useful.
+    """
+    text = BeautifulSoup(html, "lxml").get_text(" ", strip=True).lower()
+    markers = (
+        "forkert",
+        "ugyld",
+        "fejl",
+        "invalid",
+        "incorrect",
+        "brugernavn",
+        "adgangskode",
+        "password",
+    )
+    return any(marker in text for marker in markers)
+
 def login(
     portal: PortalSession,
     username: str,
@@ -89,7 +108,13 @@ def login(
         forms = soup.find_all("form")
         if len(forms) == 1:
             action, data = _parse_form(html)
-            if action and re.search(r"ssocomplete|relay", html, re.IGNORECASE):
+            is_saml_relay = (
+                bool(re.search(r"ssocomplete|relay", html, re.IGNORECASE))
+                or "ssocomplete" in url.lower()
+                or "assertionconsumerservice" in action.lower()
+                or "samlresponse" in {k.lower() for k in data.keys()}
+            )
+            if action and is_saml_relay:
                 abs_action = _abs(portal, action)
                 logger.debug("Relaying SAML form to %s", abs_action)
                 resp = portal.post(abs_action, data=data, allow_redirects=True)
@@ -170,12 +195,27 @@ def login(
             else:
                 logger.debug("Filling ALM login form for %s", username)
                 action, data = _parse_form(html)
+                if not action:
+                    # Some failed login pages render a form without action.
+                    # Reuse current URL to avoid posting to portal root (/).
+                    action = url
                 data["UserName"] = username
                 data["Password"] = password
                 resp = portal.post(
                     _abs(portal, action), data=data, allow_redirects=True
                 )
                 url = resp.url
+
+                # ALM failure often returns HTTP 200 on the same login page.
+                # Reposting the same credentials in a loop does not help.
+                if "/Account/IdpLogin" in url and _looks_like_failed_alm_login(
+                    resp.text
+                ):
+                    raise RuntimeError(
+                        "ALM login was rejected (portal returned IdpLogin again). "
+                        "Verify SKOLEINTRA_USERNAME/SKOLEINTRA_PASSWORD or try "
+                        "SKOLEINTRA_LOGIN_TYPE=uni."
+                    )
             continue
 
         # ----------------------------------------------------------------

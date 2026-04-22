@@ -14,6 +14,8 @@ class Settings(BaseSettings):
         env_prefix="SKOLEINTRA_",
         extra="ignore",
         populate_by_name=True,
+        env_file=".env",
+        env_file_encoding="utf-8",
     )
 
     # Database — no SKOLEINTRA_ prefix, matches standard convention
