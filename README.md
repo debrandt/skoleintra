@@ -14,6 +14,8 @@ PostgreSQL, with a planned web UI and notification dispatcher.
 | `SKOLEINTRA_USERNAME` | Portal username |
 | `SKOLEINTRA_PASSWORD` | Portal password |
 | `SKOLEINTRA_LOGIN_TYPE` | `uni` (UNI-Login, default) or `alm` (ordinary login) |
+| `SKOLEINTRA_PHOTOS_NOT_OLDER_THAN` | Optional cutoff date (`YYYY-MM-DD`) for photo blob downloads |
+| `SKOLEINTRA_PHOTO_RETENTION_DAYS` | Optional retention window for stored photo blobs |
 
 ### Optional
 
@@ -47,6 +49,14 @@ Add `--debug` for verbose logging and failure artifact saving:
 
 ```sh
 skoleintra scrape --debug
+```
+
+Photo blob controls are part of the same scrape command:
+
+```sh
+skoleintra scrape \
+    --photos-not-older-than 2026-01-01 \
+    --photo-retention-days 30
 ```
 
 ### Apply database migrations

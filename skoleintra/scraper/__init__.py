@@ -13,14 +13,17 @@ command.  It:
 
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from skoleintra.blobs.client import get_s3_client
 from skoleintra.blobs.download import download_pending_attachments
 from skoleintra.db import session_scope
 from skoleintra.db.upsert import upsert_attachment, upsert_child, upsert_item
+from skoleintra.photos import prune_photo_blobs, sync_attachment_blob
 from skoleintra.scraper.children import get_children
 from skoleintra.scraper.login import login
 from skoleintra.scraper.pages import messages as messages_scraper
+from skoleintra.scraper.pages import photos as photos_scraper
 from skoleintra.scraper.session import PortalSession
 from skoleintra.settings import Settings
 
@@ -34,10 +37,19 @@ class ScrapeResult:
     items_updated: int = 0
     attachments: int = 0
     blobs_uploaded: int = 0
+    photo_blobs_downloaded: int = 0
+    photo_blobs_pruned: int = 0
+    photo_blobs_skipped_old: int = 0
+    photo_blobs_skipped_non_photo: int = 0
     errors: list[str] = field(default_factory=list)
 
 
-def run_scrape(settings: Settings, debug: bool = False) -> ScrapeResult:
+def run_scrape(
+    settings: Settings,
+    debug: bool = False,
+    photo_not_older_than: datetime | None = None,
+    photo_retention_days: int | None = None,
+) -> ScrapeResult:
     """Run a full scrape cycle.
 
     Parameters
@@ -91,6 +103,8 @@ def run_scrape(settings: Settings, debug: bool = False) -> ScrapeResult:
     # Scrape each child
     # ------------------------------------------------------------------
     with session_scope() as db_session:
+        result.photo_blobs_pruned = prune_photo_blobs(db_session, photo_retention_days)
+
         for child_name, child_url_prefix in sorted(children.items()):
             logger.info("Processing child: %s", child_name)
             child_obj = upsert_child(db_session, child_name, settings.hostname)
@@ -108,6 +122,19 @@ def run_scrape(settings: Settings, debug: bool = False) -> ScrapeResult:
                     )
                 continue
 
+            # Photos
+            try:
+                photo_items = photos_scraper.scrape(portal, child_url_prefix)
+                scraped_items.extend(photo_items)
+            except Exception as exc:
+                msg = f"[{child_name}] photos scraper failed: {exc}"
+                logger.error(msg)
+                result.errors.append(msg)
+                if debug:
+                    portal.save_debug_artifact(
+                        f"{child_name}_photos_error.html", str(exc)
+                    )
+
             for scraped in scraped_items:
                 try:
                     item_obj, is_new = upsert_item(db_session, child_obj, scraped)
@@ -120,8 +147,23 @@ def run_scrape(settings: Settings, debug: bool = False) -> ScrapeResult:
                         result.items_updated += 1
 
                     for att in scraped.attachments:
-                        upsert_attachment(db_session, item_obj, att.filename, att.url)
+                        db_att = upsert_attachment(db_session, item_obj, att.filename, att.url)
                         result.attachments += 1
+
+                        if scraped.type == photos_scraper.ITEM_TYPE:
+                            photo_sync_result = sync_attachment_blob(
+                                db_session,
+                                portal,
+                                db_att,
+                                item_date=scraped.date,
+                                not_older_than=photo_not_older_than,
+                                debug=debug,
+                            )
+                            result.photo_blobs_downloaded += photo_sync_result.downloaded
+                            result.photo_blobs_skipped_old += photo_sync_result.skipped_old
+                            result.photo_blobs_skipped_non_photo += (
+                                photo_sync_result.skipped_non_photo
+                            )
                 except Exception as exc:
                     msg = f"[{child_name}] DB upsert failed for {scraped.external_id}: {exc}"
                     logger.error(msg)

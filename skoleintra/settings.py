@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     blob_s3_secret_access_key: str | None = Field(default=None, validation_alias="BLOB_S3_SECRET_ACCESS_KEY")
     blob_s3_region: str = Field(default="us-east-1", validation_alias="BLOB_S3_REGION")
     blob_s3_prefix: str = Field(default="skoleintra", validation_alias="BLOB_S3_PREFIX")
+    
+    # Photos
+    photos_not_older_than: str = Field(default="")
+    photo_retention_days: int | None = None
 
 
 def get_settings() -> Settings:
