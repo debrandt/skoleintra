@@ -1,4 +1,5 @@
 import argparse
+import os
 
 from sqlalchemy.exc import OperationalError
 
@@ -42,6 +43,7 @@ def _cmd_migrate(args: argparse.Namespace) -> int:
 
 def _cmd_scrape(args: argparse.Namespace) -> int:
     from skoleintra.db import init_db
+    from skoleintra.photos import parse_not_older_than_date
     from skoleintra.scraper import run_scrape
     from skoleintra.settings import get_settings
 
@@ -63,7 +65,26 @@ def _cmd_scrape(args: argparse.Namespace) -> int:
 
     init_db(settings.database_url)
 
-    result = run_scrape(settings, debug=args.debug)
+    try:
+        not_older_than = parse_not_older_than_date(
+            args.photos_not_older_than or settings.photos_not_older_than
+        )
+    except ValueError as exc:
+        logging.error("Invalid --photos-not-older-than value: %s", exc)
+        return 2
+
+    retention_days = (
+        args.photo_retention_days
+        if args.photo_retention_days is not None
+        else settings.photo_retention_days
+    )
+
+    result = run_scrape(
+        settings,
+        debug=args.debug,
+        photo_not_older_than=not_older_than,
+        photo_retention_days=retention_days,
+    )
 
     print(
         f"\nScrape complete:"
@@ -72,6 +93,10 @@ def _cmd_scrape(args: argparse.Namespace) -> int:
         f"\n  updated  : {result.items_updated}"
         f"\n  attachments: {result.attachments}"
         f"\n  blobs uploaded: {result.blobs_uploaded}"
+        f"\n  photo blobs downloaded: {result.photo_blobs_downloaded}"
+        f"\n  photo blobs skipped (old): {result.photo_blobs_skipped_old}"
+        f"\n  photo blobs skipped (non-photo): {result.photo_blobs_skipped_non_photo}"
+        f"\n  photo blobs pruned: {result.photo_blobs_pruned}"
     )
     if result.errors:
         print(f"\n  errors ({len(result.errors)}):")
@@ -94,6 +119,17 @@ def main() -> None:
         action="store_true",
         default=False,
         help="Enable debug logging and save failure artifacts to state_dir",
+    )
+    scrape_p.add_argument(
+        "--photos-not-older-than",
+        default="",
+        help="Only download photo blobs for items dated on/after YYYY-MM-DD",
+    )
+    scrape_p.add_argument(
+        "--photo-retention-days",
+        type=int,
+        default=None,
+        help="Delete stored photo blobs older than N days before scrape processing",
     )
 
     notify = sub.add_parser("notify", help="Send pending notifications")
