@@ -34,6 +34,7 @@ DEFAULT_NOTIFICATION_TYPES = (
     "homework",
     "document",
     "photo",
+    "photo_album",
     "weekplan",
 )
 
@@ -456,14 +457,14 @@ def _with_retries(
 
 def _subject_for(item: Item) -> str:
     title = _clean_text(item.title, default="(untitled)")
-    item_type = _clean_text(item.type, default="item")
+    item_type = _display_type_for_item(item)
     return f"[Skoleintra:{item_type}] {title}"
 
 
 def _plain_text_for(item: Item) -> str:
     title = _clean_text(item.title, default="(untitled)")
     sender = _clean_text(item.sender, default="unknown")
-    item_type = _clean_text(item.type, default="item")
+    item_type = _display_type_for_item(item)
     body_txt = _body_text_from_html(item.body_html)
 
     lines = [
@@ -486,7 +487,7 @@ def _plain_text_for(item: Item) -> str:
 def _ntfy_markdown_for(item: Item) -> str:
     title = _clean_text(item.title, default="(untitled)")
     sender = _clean_text(item.sender, default="unknown")
-    item_type = _clean_text(item.type, default="item")
+    item_type = _display_type_for_item(item)
     body_txt = _body_text_from_html(item.body_html)
 
     meta_parts = [f"`{item_type}`", sender]
@@ -513,6 +514,7 @@ def _ntfy_tags_for_item(item: Item) -> list[str]:
         "homework": ["books", "school"],
         "document": ["page_facing_up", "school"],
         "photo": ["camera", "school"],
+        "photo_album": ["camera", "school"],
         "weekplan": ["calendar", "school"],
     }
     return type_tags.get(item_type, ["bell", "school"])
@@ -543,6 +545,13 @@ def _clean_text(value: str | None, default: str) -> str:
     normalized = html.unescape(value).replace("\xa0", " ")
     collapsed = _collapse_ws(normalized)
     return collapsed or default
+
+
+def _display_type_for_item(item: Item) -> str:
+    item_type = _clean_text(item.type, default="item").lower()
+    return {
+        "photo_album": "photo album",
+    }.get(item_type, item_type)
 
 
 def _format_mobile_date(iso_value: str) -> str:

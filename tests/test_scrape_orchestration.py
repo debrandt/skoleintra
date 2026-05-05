@@ -42,12 +42,16 @@ def test_run_scrape_includes_weekplan_items(monkeypatch):
             SimpleNamespace(id=1, source_id="child-1")
         ],
     )
-    monkeypatch.setattr(scraper_module.messages_scraper, "scrape", lambda *args: [])
-    monkeypatch.setattr(scraper_module.photos_scraper, "scrape", lambda *args: [])
+    monkeypatch.setattr(
+        scraper_module.messages_scraper, "scrape", lambda *args, **kwargs: []
+    )
+    monkeypatch.setattr(
+        scraper_module.photos_scraper, "scrape", lambda *args, **kwargs: []
+    )
     monkeypatch.setattr(
         scraper_module.weekplans_scraper,
         "scrape",
-        lambda *args: [
+        lambda *args, **kwargs: [
             ScrapedItem(
                 type="weekplan",
                 external_id="2026-W19",
@@ -81,3 +85,77 @@ def test_run_scrape_includes_weekplan_items(monkeypatch):
     assert upserted_types == ["weekplan"]
     assert result.items_new == 1
     assert result.items_updated == 0
+
+
+def test_run_scrape_passes_response_cache_ttl_to_scrapers(monkeypatch):
+    seen_cache_ttls: list[int | None] = []
+
+    class DummyPortal:
+        def __init__(self, hostname: str, state_dir: str) -> None:
+            self.hostname = hostname
+            self.state_dir = state_dir
+
+    @contextmanager
+    def fake_session_scope():
+        yield object()
+
+    monkeypatch.setattr(scraper_module, "PortalSession", DummyPortal)
+    monkeypatch.setattr(scraper_module, "get_s3_client", lambda settings: None)
+    monkeypatch.setattr(scraper_module, "login", lambda *args, **kwargs: object())
+    monkeypatch.setattr(
+        scraper_module,
+        "get_child_snapshots",
+        lambda portal, soup: [
+            ChildSnapshot(
+                source_id="child-1",
+                display_name="Freja Example",
+                url_prefix="https://school.example.test/parent/1234/Freja",
+            )
+        ],
+    )
+    monkeypatch.setattr(scraper_module, "session_scope", fake_session_scope)
+    monkeypatch.setattr(scraper_module, "prune_photo_blobs", lambda session, days: 0)
+    monkeypatch.setattr(
+        scraper_module,
+        "sync_child_scope",
+        lambda session, school_hostname, discovered, scope_succeeded: [
+            SimpleNamespace(id=1, source_id="child-1")
+        ],
+    )
+    monkeypatch.setattr(
+        scraper_module.messages_scraper,
+        "scrape",
+        lambda *args, **kwargs: seen_cache_ttls.append(kwargs.get("cache_ttl_seconds"))
+        or [],
+    )
+    monkeypatch.setattr(
+        scraper_module.photos_scraper,
+        "scrape",
+        lambda *args, **kwargs: seen_cache_ttls.append(kwargs.get("cache_ttl_seconds"))
+        or [],
+    )
+    monkeypatch.setattr(
+        scraper_module.weekplans_scraper,
+        "scrape",
+        lambda *args, **kwargs: seen_cache_ttls.append(kwargs.get("cache_ttl_seconds"))
+        or [],
+    )
+    monkeypatch.setattr(
+        scraper_module,
+        "upsert_item",
+        lambda session, child, scraped: (SimpleNamespace(id=1), True),
+    )
+    monkeypatch.setattr(scraper_module, "upsert_attachment", lambda *args: None)
+    monkeypatch.setattr(scraper_module, "download_pending_attachments", lambda *args: 0)
+
+    scraper_module.run_scrape(
+        Settings(
+            database_url="postgresql+psycopg://localhost/skoleintra",
+            hostname="school.example.test",
+            username="parent",
+            password="secret",
+            scrape_response_cache_seconds=900,
+        )
+    )
+
+    assert seen_cache_ttls == [900, 900, 900]

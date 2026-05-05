@@ -16,6 +16,7 @@ PostgreSQL, with a planned web UI and notification dispatcher.
 | `SKOLEINTRA_LOGIN_TYPE` | `uni` (UNI-Login, default) or `alm` (ordinary login) |
 | `SKOLEINTRA_PHOTOS_NOT_OLDER_THAN` | Optional cutoff date (`YYYY-MM-DD`) for photo blob downloads |
 | `SKOLEINTRA_PHOTO_RETENTION_DAYS` | Optional retention window for stored photo blobs |
+| `SKOLEINTRA_SCRAPE_RESPONSE_CACHE_SECONDS` | Optional cache window for reusing scrape detail-page responses across runs | `900` |
 
 ### Optional
 

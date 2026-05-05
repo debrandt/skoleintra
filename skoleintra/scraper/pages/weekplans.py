@@ -19,7 +19,12 @@ logger = logging.getLogger(__name__)
 ITEM_TYPE = "weekplan"
 
 
-def scrape(portal: PortalSession, child_url_prefix: str) -> list[ScrapedItem]:
+def scrape(
+    portal: PortalSession,
+    child_url_prefix: str,
+    *,
+    cache_ttl_seconds: int | None = None,
+) -> list[ScrapedItem]:
     """Scrape published week plans for one child."""
     url = f"{child_url_prefix}item/weeklyplansandhomework/list"
     logger.info("Fetching week plans from %s", url)
@@ -39,7 +44,7 @@ def scrape(portal: PortalSession, child_url_prefix: str) -> list[ScrapedItem]:
             continue
 
         try:
-            detail_resp = portal.get(plan_url)
+            detail_resp = portal.get(plan_url, cache_ttl_seconds=cache_ttl_seconds)
         except Exception as exc:
             logger.warning("Failed to fetch week plan %s: %s", plan_url, exc)
             continue

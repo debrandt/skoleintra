@@ -78,6 +78,7 @@ def run_scrape(
     )
 
     s3_client = get_s3_client(settings)
+    cache_ttl_seconds = max(0, settings.scrape_response_cache_seconds or 0) or None
 
     # ------------------------------------------------------------------
     # Login
@@ -157,7 +158,11 @@ def run_scrape(
 
             # Messages
             try:
-                scraped_items = messages_scraper.scrape(portal, child_url_prefix)
+                scraped_items = messages_scraper.scrape(
+                    portal,
+                    child_url_prefix,
+                    cache_ttl_seconds=cache_ttl_seconds,
+                )
             except Exception as exc:
                 msg = f"[{child_name}] messages scraper failed: {exc}"
                 logger.error(msg)
@@ -170,7 +175,11 @@ def run_scrape(
 
             # Photos
             try:
-                photo_items = photos_scraper.scrape(portal, child_url_prefix)
+                photo_items = photos_scraper.scrape(
+                    portal,
+                    child_url_prefix,
+                    cache_ttl_seconds=cache_ttl_seconds,
+                )
                 scraped_items.extend(photo_items)
             except Exception as exc:
                 msg = f"[{child_name}] photos scraper failed: {exc}"
@@ -183,7 +192,11 @@ def run_scrape(
 
             # Week plans
             try:
-                weekplan_items = weekplans_scraper.scrape(portal, child_url_prefix)
+                weekplan_items = weekplans_scraper.scrape(
+                    portal,
+                    child_url_prefix,
+                    cache_ttl_seconds=cache_ttl_seconds,
+                )
                 scraped_items.extend(weekplan_items)
             except Exception as exc:
                 msg = f"[{child_name}] weekplans scraper failed: {exc}"

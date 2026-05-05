@@ -21,7 +21,7 @@ class DummyPortal:
             return path
         return f"https://{self.hostname}{path}"
 
-    def get(self, url: str) -> DummyResponse:
+    def get(self, url: str, **_kwargs) -> DummyResponse:
         return DummyResponse(self._pages[self.abs_url(url)])
 
 

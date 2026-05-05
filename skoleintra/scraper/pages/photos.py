@@ -8,6 +8,7 @@ actual image URLs under ``/file/photoalbum/<album-id>/...``.
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import re
 from datetime import datetime, timezone
@@ -19,10 +20,16 @@ from skoleintra.scraper.session import PortalSession
 
 logger = logging.getLogger(__name__)
 
+ALBUM_ITEM_TYPE = "photo_album"
 ITEM_TYPE = "photo"
 
 
-def scrape(portal: PortalSession, child_url_prefix: str) -> list[ScrapedItem]:
+def scrape(
+    portal: PortalSession,
+    child_url_prefix: str,
+    *,
+    cache_ttl_seconds: int | None = None,
+) -> list[ScrapedItem]:
     """Scrape photo albums for one child and return them as ``ScrapedItem`` rows."""
     url = f"{child_url_prefix}/photos/albums"
     logger.info("Fetching photo albums from %s", url)
@@ -51,7 +58,7 @@ def scrape(portal: PortalSession, child_url_prefix: str) -> list[ScrapedItem]:
         album_author = _album_author(album_link)
 
         try:
-            album_resp = portal.get(album_url)
+            album_resp = portal.get(album_url, cache_ttl_seconds=cache_ttl_seconds)
         except Exception as exc:
             logger.warning("Failed to fetch photo album %s: %s", album_url, exc)
             continue
@@ -73,22 +80,36 @@ def scrape(portal: PortalSession, child_url_prefix: str) -> list[ScrapedItem]:
             body_parts.append(f"<p>{album_description}</p>")
         body_html = "\n".join(body_parts) + "\n"
 
+        album_raw = {
+            "album_url": album_url,
+            "count": len(image_urls),
+            "description": album_description,
+            "author": album_author,
+        }
+
         items.append(
             ScrapedItem(
-                type=ITEM_TYPE,
+                type=ALBUM_ITEM_TYPE,
                 external_id=external_id,
-                title=f"Photos: {album_name}",
+                title=f"Photo album: {album_name}",
                 sender=album_author or "SkoleIntra",
                 body_html=body_html,
                 date=date,
-                raw_json={
-                    "album_url": album_url,
-                    "count": len(image_urls),
-                    "description": album_description,
-                    "author": album_author,
-                },
-                attachments=attachments,
+                raw_json=album_raw,
             )
+        )
+        items.extend(
+            ScrapedItem(
+                type=ITEM_TYPE,
+                external_id=f"{external_id}:{attachment.url}",
+                title=f"Photo: {album_name}",
+                sender=album_author or "SkoleIntra",
+                body_html=body_html,
+                date=date,
+                raw_json={**album_raw, "photo_url": attachment.url},
+                attachments=[attachment],
+            )
+            for attachment in attachments
         )
 
     logger.info("Found %d photo album item(s) for %s", len(items), child_url_prefix)
@@ -98,6 +119,41 @@ def scrape(portal: PortalSession, child_url_prefix: str) -> list[ScrapedItem]:
 def _extract_image_urls(soup: BeautifulSoup, portal: PortalSession) -> list[str]:
     urls: list[str] = []
     seen: set[str] = set()
+
+    for gallery in soup.find_all(
+        attrs={
+            "data-clientlogic-settings-photoalbum": True,
+        }
+    ):
+        payload = (
+            gallery.get("data-clientlogic-settings-photoalbum")
+            or gallery.get("data-clientlogic-settings-PhotoAlbum")
+            or ""
+        ).strip()
+        if not payload:
+            continue
+
+        try:
+            parsed = json.loads(payload)
+        except json.JSONDecodeError:
+            continue
+
+        items = parsed.get("GalleryModel", {}).get("Items", [])
+        if not isinstance(items, list):
+            continue
+
+        for entry in items:
+            if not isinstance(entry, dict):
+                continue
+            src = str(entry.get("Source") or "").strip()
+            if not src:
+                continue
+            abs_url = portal.abs_url(src)
+            if "/file/photoalbum/" not in abs_url or abs_url in seen:
+                continue
+            seen.add(abs_url)
+            urls.append(abs_url)
+
     for img in soup.select("img"):
         src = (img.get("src") or "").strip()
         if not src or src.startswith("data:"):
