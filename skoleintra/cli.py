@@ -8,6 +8,18 @@ import logging
 import sys
 
 
+def _upgrade_database(database_url: str) -> None:
+    from alembic import command as alembic_command
+    from alembic.config import Config
+
+    logging.info("Running database migrations…")
+    cfg = Config()
+    cfg.set_main_option("script_location", "skoleintra.db:migrations")
+    cfg.set_main_option("sqlalchemy.url", database_url)
+    alembic_command.upgrade(cfg, "heads")
+    logging.info("Migrations complete.")
+
+
 def _configure_logging(debug: bool) -> None:
     level = logging.DEBUG if debug else logging.INFO
     logging.basicConfig(
@@ -23,8 +35,6 @@ def _configure_logging(debug: bool) -> None:
 
 
 def _cmd_migrate(args: argparse.Namespace) -> int:
-    from alembic.config import Config
-    from alembic import command as alembic_command
     from skoleintra.settings import get_settings
 
     settings = get_settings()
@@ -32,12 +42,7 @@ def _cmd_migrate(args: argparse.Namespace) -> int:
         logging.error("Required environment variable not set: DATABASE_URL")
         return 1
 
-    logging.info("Running database migrations…")
-    cfg = Config()
-    cfg.set_main_option("script_location", "skoleintra.db:migrations")
-    cfg.set_main_option("sqlalchemy.url", settings.database_url)
-    alembic_command.upgrade(cfg, "head")
-    logging.info("Migrations complete.")
+    _upgrade_database(settings.database_url)
     return 0
 
 
@@ -63,6 +68,7 @@ def _cmd_scrape(args: argparse.Namespace) -> int:
             logging.error("Required environment variable not set: %s", name)
         return 1
 
+    _upgrade_database(settings.database_url)
     init_db(settings.database_url)
 
     try:
