@@ -1,3 +1,5 @@
+"""Photo attachment filtering and blob-sync helpers."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -29,12 +31,15 @@ _IMAGE_EXTENSIONS = {
 
 @dataclass(slots=True)
 class PhotoSyncResult:
+    """Counters describing how a photo attachment sync attempt ended."""
+
     downloaded: int = 0
     skipped_old: int = 0
     skipped_non_photo: int = 0
 
 
 def parse_not_older_than_date(value: str | None) -> datetime | None:
+    """Parse a ``YYYY-MM-DD`` cutoff into a UTC midnight timestamp."""
     if not value:
         return None
     parsed = datetime.strptime(value, "%Y-%m-%d").date()
@@ -52,6 +57,7 @@ def sync_attachment_blob(
     not_older_than: datetime | None = None,
     debug: bool = False,
 ) -> PhotoSyncResult:
+    """Download and upload a photo attachment when it passes the filters."""
     result = PhotoSyncResult()
     _ = db_session
 
@@ -68,10 +74,9 @@ def sync_attachment_blob(
 
     response = portal.get(attachment.url)
     payload = response.content
-    content_type = (
-        response.headers.get("Content-Type", "").split(";")[0].strip().lower()
-        or guess_content_type(attachment.filename)
-    )
+    content_type = response.headers.get("Content-Type", "").split(";")[
+        0
+    ].strip().lower() or guess_content_type(attachment.filename)
     if not _is_photo_attachment(attachment.filename, attachment.url, content_type):
         result.skipped_non_photo += 1
         return result
@@ -95,6 +100,7 @@ def sync_attachment_blob(
 
 
 def prune_photo_blobs(db_session: Session, retention_days: int | None) -> int:
+    """Placeholder for future photo blob retention cleanup."""
     _ = db_session
     _ = retention_days
     return 0

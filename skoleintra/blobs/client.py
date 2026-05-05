@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 try:
     import boto3  # type: ignore[import-untyped]
+
     _HAS_BOTO3 = True
 except ImportError:
     _HAS_BOTO3 = False
@@ -40,16 +41,23 @@ def get_s3_client(settings: Settings):
     return boto3.client("s3", **kwargs)
 
 
-def upload_blob(s3_client, bucket: str, key: str, data: bytes, content_type: str) -> None:
+def upload_blob(
+    s3_client, bucket: str, key: str, data: bytes, content_type: str
+) -> None:
+    """Upload a blob payload to object storage."""
     s3_client.put_object(Bucket=bucket, Key=key, Body=data, ContentType=content_type)
 
 
 def download_blob(s3_client, bucket: str, key: str) -> bytes:
+    """Download a blob payload from object storage."""
     response = s3_client.get_object(Bucket=bucket, Key=key)
     return response["Body"].read()
 
 
-def generate_presigned_url(s3_client, bucket: str, key: str, expires_in: int = 86400) -> str:
+def generate_presigned_url(
+    s3_client, bucket: str, key: str, expires_in: int = 86400
+) -> str:
+    """Generate a temporary download URL for an object-storage blob."""
     return s3_client.generate_presigned_url(
         "get_object",
         Params={"Bucket": bucket, "Key": key},
@@ -58,5 +66,6 @@ def generate_presigned_url(s3_client, bucket: str, key: str, expires_in: int = 8
 
 
 def guess_content_type(filename: str) -> str:
+    """Infer a MIME type from a filename, defaulting to binary content."""
     mime, _ = mimetypes.guess_type(filename)
     return mime or "application/octet-stream"

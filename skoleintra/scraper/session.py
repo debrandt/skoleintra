@@ -62,6 +62,7 @@ class PortalSession:
                 logger.warning("Could not load cookies from %s: %s", path, exc)
 
     def save_cookies(self) -> None:
+        """Persist the session cookie jar to disk for reuse."""
         path = self._cookie_path()
         try:
             with open(path, "wb") as fh:
@@ -75,11 +76,13 @@ class PortalSession:
     # ------------------------------------------------------------------
 
     def abs_url(self, path: str) -> str:
+        """Convert a portal-relative path into an absolute URL."""
         if path.startswith("http://") or path.startswith("https://"):
             return path
         return f"https://{self.hostname}{path}"
 
     def get(self, url: str, **kwargs: Any) -> requests.Response:
+        """Perform a GET request against the portal with default headers and timeout."""
         url = self.abs_url(url)
         logger.debug("GET %s", url)
         kwargs.setdefault("timeout", _REQUEST_TIMEOUT)
@@ -88,6 +91,7 @@ class PortalSession:
         return resp
 
     def post(self, url: str, **kwargs: Any) -> requests.Response:
+        """Perform a POST request against the portal with default headers and timeout."""
         url = self.abs_url(url)
         logger.debug("POST %s", url)
         kwargs.setdefault("timeout", _REQUEST_TIMEOUT)
@@ -102,8 +106,11 @@ class PortalSession:
         """
         os.makedirs(self.state_dir, exist_ok=True)
         path = os.path.join(self.state_dir, f"debug_{name}")
-        mode = "w" if isinstance(content, str) else "wb"
-        with open(path, mode) as fh:
-            fh.write(content)
+        if isinstance(content, str):
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(content)
+        else:
+            with open(path, "wb") as fh:
+                fh.write(content)
         logger.info("Debug artifact saved to %s", path)
         return path

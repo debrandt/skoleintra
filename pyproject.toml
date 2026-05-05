@@ -23,11 +23,54 @@ dependencies = [
   "boto3>=1.34",            # S3-compatible blob storage (optional - blobs disabled if not configured)
 ]
 
+[project.optional-dependencies]
+dev = [
+  "black>=25.0",
+  "ipython>=9.0",
+  "isort>=6.0",
+  "pylint>=3.3",
+  "pytest>=9.0",
+]
+
 [project.scripts]
 skoleintra = "skoleintra.cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.black]
+line-length = 88
+target-version = ["py312", "py313"]
+
+[tool.isort]
+profile = "black"
+line_length = 88
+py_version = 312
+src_paths = ["skoleintra", "tests"]
+
+[tool.pylint.main]
+jobs = 0
+py-version = "3.12"
+
+[tool.pylint.format]
+max-line-length = 88
+
+[tool.pylint."messages control"]
+disable = [
+  "broad-exception-caught",
+  "duplicate-code",
+  "import-outside-toplevel",
+  "line-too-long",
+  "not-callable",
+  "too-few-public-methods",
+  "too-many-arguments",
+  "too-many-branches",
+  "too-many-instance-attributes",
+  "too-many-locals",
+  "too-many-positional-arguments",
+  "too-many-return-statements",
+  "too-many-statements",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["skoleintra"]

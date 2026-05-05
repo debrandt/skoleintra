@@ -10,6 +10,8 @@ from datetime import datetime
 
 @dataclass
 class ScrapedAttachment:
+    """Normalised representation of one scraped attachment link."""
+
     filename: str
     url: str
 

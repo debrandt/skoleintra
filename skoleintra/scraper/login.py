@@ -59,6 +59,7 @@ def _looks_like_failed_alm_login(html: str) -> bool:
     )
     return any(marker in text for marker in markers)
 
+
 def login(
     portal: PortalSession,
     username: str,
@@ -112,7 +113,7 @@ def login(
                 bool(re.search(r"ssocomplete|relay", html, re.IGNORECASE))
                 or "ssocomplete" in url.lower()
                 or "assertionconsumerservice" in action.lower()
-                or "samlresponse" in {k.lower() for k in data.keys()}
+                or "samlresponse" in {key.lower() for key in data}
             )
             if action and is_saml_relay:
                 abs_action = _abs(portal, action)
@@ -140,9 +141,7 @@ def login(
                     url = resp.url
                     break
             else:
-                raise RuntimeError(
-                    f"Could not find confirmation form at {url}"
-                )
+                raise RuntimeError(f"Could not find confirmation form at {url}")
             continue
 
         # ----------------------------------------------------------------
@@ -221,9 +220,7 @@ def login(
         # ----------------------------------------------------------------
         # Unknown page — abort
         # ----------------------------------------------------------------
-        raise RuntimeError(
-            f"Login stalled at unexpected URL after {step} steps: {url}"
-        )
+        raise RuntimeError(f"Login stalled at unexpected URL after {step} steps: {url}")
 
     raise RuntimeError(
         f"Login did not complete within {_MAX_REDIRECTS} redirect steps. "

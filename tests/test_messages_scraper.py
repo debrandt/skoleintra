@@ -2,9 +2,7 @@
 
 from datetime import datetime, timezone
 
-import pytest
-
-from skoleintra.scraper.pages.messages import _parse_date, _msg_to_scraped_item
+from skoleintra.scraper.pages.messages import _msg_to_scraped_item, _parse_date
 
 
 class TestParseDate:
@@ -57,7 +55,7 @@ class TestMsgToScrapedItem:
         assert '<div class="base"><p>Hello</p></div>' in item.body_html
         assert item.date == datetime(2024, 1, 15, 13, 45, tzinfo=timezone.utc)
         assert item.type == "message"
-        assert item.attachments == []
+        assert not item.attachments
 
     def test_no_thread_id(self):
         item = _msg_to_scraped_item(self._base_msg(), thread_id="")
@@ -78,7 +76,10 @@ class TestMsgToScrapedItem:
     def test_attachments_parsed(self):
         msg = self._base_msg(
             AttachmentsLinks=[
-                {"HrefAttributeValue": "https://example.com/file.pdf", "Text": "file.pdf"}
+                {
+                    "HrefAttributeValue": "https://example.com/file.pdf",
+                    "Text": "file.pdf",
+                }
             ]
         )
         item = _msg_to_scraped_item(msg, thread_id="t1")

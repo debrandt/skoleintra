@@ -1,3 +1,5 @@
+"""Database engine and session helpers used by the runtime entrypoints."""
+
 from collections.abc import Generator
 from contextlib import contextmanager
 
@@ -6,7 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from skoleintra.db.models import Base  # noqa: F401 — re-exported for alembic
 
-_SessionLocal: sessionmaker | None = None
+_STATE: dict[str, sessionmaker | None] = {"session_local": None}
 
 
 def init_db(database_url: str) -> None:
@@ -14,9 +16,12 @@ def init_db(database_url: str) -> None:
 
     Must be called once before using ``get_session()``.
     """
-    global _SessionLocal
     engine = create_engine(database_url)
-    _SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    _STATE["session_local"] = sessionmaker(
+        bind=engine,
+        autoflush=False,
+        autocommit=False,
+    )
 
 
 def get_session() -> Session:
@@ -24,9 +29,10 @@ def get_session() -> Session:
 
     Caller is responsible for commit/rollback and closing.
     """
-    if _SessionLocal is None:
+    session_local = _STATE["session_local"]
+    if session_local is None:
         raise RuntimeError("Database not initialised — call init_db() first.")
-    return _SessionLocal()
+    return session_local()
 
 
 @contextmanager

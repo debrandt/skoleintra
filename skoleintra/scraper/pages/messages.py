@@ -9,10 +9,10 @@ latest message has not been seen before we load the full thread and
 convert every message into a :class:`ScrapedItem`.
 """
 
+import html
 import json
 import logging
 import re
-import html
 from datetime import datetime, timezone
 
 from bs4 import BeautifulSoup
@@ -127,8 +127,7 @@ def _load_thread(
 
     if thread_id:
         return data if isinstance(data, list) else []
-    else:
-        return [data] if isinstance(data, dict) else []
+    return [data] if isinstance(data, dict) else []
 
 
 def _msg_to_scraped_item(msg: dict, thread_id: str) -> ScrapedItem | None:
@@ -173,9 +172,7 @@ def _msg_to_scraped_item(msg: dict, thread_id: str) -> ScrapedItem | None:
 # Patterns like "15. jan. 2024 13:45" or "15/01/2024 13:45"
 _DATE_PATTERNS = [
     (
-        re.compile(
-            r"(\d{1,2})\.\s*(\w+\.?)\s*(\d{4})\s+(\d{2}):(\d{2})"
-        ),
+        re.compile(r"(\d{1,2})\.\s*(\w+\.?)\s*(\d{4})\s+(\d{2}):(\d{2})"),
         "da_long",
     ),
     (
@@ -185,8 +182,18 @@ _DATE_PATTERNS = [
 ]
 
 _DA_MONTHS = {
-    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "maj": 5, "jun": 6,
-    "jul": 7, "aug": 8, "sep": 9, "okt": 10, "nov": 11, "dec": 12,
+    "jan": 1,
+    "feb": 2,
+    "mar": 3,
+    "apr": 4,
+    "maj": 5,
+    "jun": 6,
+    "jul": 7,
+    "aug": 8,
+    "sep": 9,
+    "okt": 10,
+    "nov": 11,
+    "dec": 12,
 }
 
 
@@ -205,13 +212,21 @@ def _parse_date(raw: str | None) -> datetime | None:
                 if month is None:
                     continue
                 return datetime(
-                    int(year), month, int(day), int(hour), int(minute),
+                    int(year),
+                    month,
+                    int(day),
+                    int(hour),
+                    int(minute),
                     tzinfo=timezone.utc,
                 )
-            elif fmt == "iso":
+            if fmt == "iso":
                 dd, mm, year, hour, minute = m.groups()
                 return datetime(
-                    int(year), int(mm), int(dd), int(hour), int(minute),
+                    int(year),
+                    int(mm),
+                    int(dd),
+                    int(hour),
+                    int(minute),
                     tzinfo=timezone.utc,
                 )
         except ValueError:

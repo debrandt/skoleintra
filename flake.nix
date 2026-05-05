@@ -65,7 +65,10 @@
                 psycopg
                 boto3
                 # dev tools
+                black
+                isort
                 pip
+                pylint
                 pytest
                 ipython
               ]
@@ -83,6 +86,8 @@
             echo "Python: $(python --version)"
             echo "Initialize albemic by upgrading head: alembic upgrade head"
             echo "Run the CLI: nix run . -- <command>"
+            echo "Format code: nix develop -c black . && nix develop -c isort ."
+            echo "Lint code: nix develop -c pylint skoleintra"
           '';
         };
       }

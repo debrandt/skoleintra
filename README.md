@@ -76,7 +76,13 @@ DATABASE_URL="..." alembic upgrade head
 ### Install dependencies
 
 ```sh
-pip install -e .
+pip install -e ".[dev]"
+```
+
+Or use the Nix dev shell:
+
+```sh
+nix develop
 ```
 
 ### Database setup (local Postgres)
@@ -84,6 +90,17 @@ pip install -e .
 ```sh
 createdb skoleintra
 DATABASE_URL="postgresql+psycopg://localhost/skoleintra" alembic upgrade head
+```
+
+### Formatting and linting
+
+```sh
+nix develop -c black .
+nix develop -c isort .
+nix develop -c pylint skoleintra
+nix develop -c pylint \
+  --disable=missing-module-docstring,missing-function-docstring,missing-class-docstring,protected-access,too-few-public-methods,duplicate-code,redefined-outer-name \
+  tests
 ```
 
 ---

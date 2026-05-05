@@ -53,10 +53,9 @@ def download_pending_attachments(
         try:
             resp = portal.get(att.url)
             data = resp.content
-            content_type = (
-                resp.headers.get("Content-Type", "").split(";")[0].strip()
-                or guess_content_type(att.filename)
-            )
+            content_type = resp.headers.get("Content-Type", "").split(";")[
+                0
+            ].strip() or guess_content_type(att.filename)
             item = att.item
             key = f"{prefix}/{item.child_id}/{item.type}/{item.id}/{att.filename}"
             upload_blob(s3_client, bucket, key, data, content_type)

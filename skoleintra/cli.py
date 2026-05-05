@@ -1,11 +1,13 @@
+"""CLI entrypoints for migrations, scraping, notifications, and the web app."""
+
 import argparse
+import logging
 import os
+import sys
 
 from sqlalchemy.exc import OperationalError
 
 from skoleintra.notifications import dispatch_notifications
-import logging
-import sys
 
 
 def _upgrade_database(database_url: str) -> None:
@@ -34,7 +36,7 @@ def _configure_logging(debug: bool) -> None:
         logging.getLogger("requests").setLevel(logging.WARNING)
 
 
-def _cmd_migrate(args: argparse.Namespace) -> int:
+def _cmd_migrate(_args: argparse.Namespace) -> int:
     from skoleintra.settings import get_settings
 
     settings = get_settings()
@@ -121,6 +123,7 @@ def _cmd_scrape(args: argparse.Namespace) -> int:
 
 
 def main() -> None:
+    """Parse arguments and dispatch the selected subcommand."""
     parser = argparse.ArgumentParser(prog="skoleintra")
 
     sub = parser.add_subparsers(dest="command")
@@ -193,7 +196,7 @@ def main() -> None:
         except OperationalError as exc:
             print(f"notify: database connection failed: {exc}")
             print("notify: set DATABASE_URL to a reachable Postgres instance")
-            raise SystemExit(2)
+            raise SystemExit(2) from exc
         print(
             "notify: "
             f"bootstrap_created={result.bootstrap_created} "

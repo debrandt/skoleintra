@@ -1,3 +1,7 @@
+"""Shared SQLAlchemy engine and session factory for request-scoped database access."""
+
+# pylint: disable=invalid-name
+
 from __future__ import annotations
 
 from sqlalchemy import create_engine

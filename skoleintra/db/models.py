@@ -1,3 +1,5 @@
+"""SQLAlchemy ORM models for scraped content, attachments, and notification state."""
+
 from datetime import datetime
 
 from sqlalchemy import (
@@ -16,10 +18,12 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
-    pass
+    """Declarative SQLAlchemy base class for all tables."""
 
 
 class Child(Base):
+    """A child visible in the parent portal."""
+
     __tablename__ = "children"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -38,13 +42,17 @@ class Child(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("school_hostname", "source_id", name="uq_child_source_hostname"),
+        UniqueConstraint(
+            "school_hostname", "source_id", name="uq_child_source_hostname"
+        ),
     )
 
     items: Mapped[list["Item"]] = relationship("Item", back_populates="child")
 
 
 class Group(Base):
+    """A group visible in the parent portal."""
+
     __tablename__ = "groups"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -63,11 +71,15 @@ class Group(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("school_hostname", "source_id", name="uq_group_source_hostname"),
+        UniqueConstraint(
+            "school_hostname", "source_id", name="uq_group_source_hostname"
+        ),
     )
 
 
 class Item(Base):
+    """A scraped portal item such as a message, document, or photo album."""
+
     __tablename__ = "items"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -79,7 +91,9 @@ class Item(Base):
     title: Mapped[str] = mapped_column(String(1024), nullable=False, default="")
     sender: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     body_html: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     is_read: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     notify_sent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     raw_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
@@ -106,6 +120,8 @@ class Item(Base):
 
 
 class Attachment(Base):
+    """An attachment associated with a scraped item."""
+
     __tablename__ = "attachments"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -129,6 +145,8 @@ class Attachment(Base):
 
 
 class NotificationSetting(Base):
+    """Per-item-type notification channel preferences."""
+
     __tablename__ = "notification_settings"
 
     type: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -138,6 +156,8 @@ class NotificationSetting(Base):
 
 
 class OperationalIncidentState(Base):
+    """Persisted state for operational alert incidents."""
+
     __tablename__ = "operational_incidents"
 
     key: Mapped[str] = mapped_column(String(255), primary_key=True)
@@ -147,10 +167,18 @@ class OperationalIncidentState(Base):
     summary: Mapped[str] = mapped_column(String(255), nullable=False)
     detail: Mapped[str] = mapped_column(Text, nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    first_failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_alerted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_recovered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    first_failed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_failed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_alerted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_recovered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

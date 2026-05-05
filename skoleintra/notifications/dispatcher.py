@@ -1,11 +1,14 @@
+"""Notification queue loading, formatting, and channel delivery helpers."""
+
 from __future__ import annotations
 
 import html
+import logging
 import re
 import smtplib
 import time
-from datetime import datetime, timezone
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from email.message import EmailMessage
 from typing import Callable
 
@@ -14,10 +17,17 @@ from bs4 import BeautifulSoup
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from skoleintra.blobs.client import download_blob, generate_presigned_url, get_s3_client, guess_content_type
-from skoleintra.db.models import Attachment, Item, NotificationSetting
+from skoleintra.blobs.client import (
+    download_blob,
+    generate_presigned_url,
+    get_s3_client,
+    guess_content_type,
+)
+from skoleintra.db.models import Item, NotificationSetting
 from skoleintra.db.session import SessionLocal
 from skoleintra.settings import Settings, get_settings
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_NOTIFICATION_TYPES = (
     "message",
@@ -45,6 +55,8 @@ _DA_MONTHS = {
 
 @dataclass(slots=True)
 class DispatchResult:
+    """Aggregate counters for one notification dispatch run."""
+
     bootstrap_created: int = 0
     processed: int = 0
     sent: int = 0
@@ -54,6 +66,8 @@ class DispatchResult:
 
 @dataclass(slots=True)
 class EmailConfig:
+    """SMTP configuration for parent-facing notifications."""
+
     host: str | None
     port: int
     username: str | None
@@ -65,21 +79,28 @@ class EmailConfig:
 
     @property
     def enabled(self) -> bool:
+        """Whether the email channel has enough configuration to send items."""
         return bool(self.host and self.sender and self.recipients)
 
 
 @dataclass(slots=True)
 class NtfyConfig:
+    """ntfy configuration for parent-facing notifications."""
+
     url: str | None
     default_topic: str | None
     token: str | None
 
     @property
     def enabled(self) -> bool:
+        """Whether the ntfy channel has enough configuration to send items."""
         return bool(self.url and self.default_topic)
 
 
-def dispatch_notifications(limit: int = 50, dry_run: bool = False, debug: bool = False) -> DispatchResult:
+def dispatch_notifications(
+    limit: int = 50, dry_run: bool = False, debug: bool = False
+) -> DispatchResult:
+    """Process pending items and send them through all enabled channels."""
     result = DispatchResult()
     app_settings = get_settings()
 
@@ -114,7 +135,11 @@ def dispatch_notifications(limit: int = 50, dry_run: bool = False, debug: bool =
 
             email_enabled = bool(settings.email_enabled) if settings else True
             ntfy_enabled = bool(settings.ntfy_enabled) if settings else True
-            ntfy_topic = settings.ntfy_topic if settings and settings.ntfy_topic else ntfy_cfg.default_topic
+            ntfy_topic = (
+                settings.ntfy_topic
+                if settings and settings.ntfy_topic
+                else ntfy_cfg.default_topic
+            )
             state = _get_notify_state(item)
 
             wants_email = email_enabled and email_cfg.enabled
@@ -145,7 +170,9 @@ def dispatch_notifications(limit: int = 50, dry_run: bool = False, debug: bool =
             if active_channels == 0:
                 # Nothing is currently enabled/configured for this item.
                 if debug:
-                    print(f"notify: skipping item_id={item.id} due to no active channels")
+                    print(
+                        f"notify: skipping item_id={item.id} due to no active channels"
+                    )
                 result.skipped += 1
                 continue
 
@@ -153,9 +180,11 @@ def dispatch_notifications(limit: int = 50, dry_run: bool = False, debug: bool =
 
             if pending_email:
                 ok, err = _with_retries(
-                    lambda: _send_email(
-                        item=item, cfg=email_cfg,
-                        s3_client=s3_client, settings=app_settings,
+                    lambda item=item: _send_email(
+                        item=item,
+                        cfg=email_cfg,
+                        s3_client=s3_client,
+                        settings=app_settings,
                     ),
                     action=f"email item_id={item.id}",
                 )
@@ -167,9 +196,12 @@ def dispatch_notifications(limit: int = 50, dry_run: bool = False, debug: bool =
 
             if pending_ntfy and ntfy_topic:
                 ok, err = _with_retries(
-                    lambda: _send_ntfy(
-                        item=item, cfg=ntfy_cfg, topic=ntfy_topic,
-                        s3_client=s3_client, settings=app_settings,
+                    lambda item=item, ntfy_topic=ntfy_topic: _send_ntfy(
+                        item=item,
+                        cfg=ntfy_cfg,
+                        topic=ntfy_topic,
+                        s3_client=s3_client,
+                        settings=app_settings,
                     ),
                     action=f"ntfy item_id={item.id}",
                 )
@@ -180,9 +212,8 @@ def dispatch_notifications(limit: int = 50, dry_run: bool = False, debug: bool =
                     _set_notify_channel_sent(item, channel="ntfy")
 
             final_state = _get_notify_state(item)
-            all_required_sent = (
-                (not wants_email or final_state["email_sent"])
-                and (not wants_ntfy or final_state["ntfy_sent"])
+            all_required_sent = (not wants_email or final_state["email_sent"]) and (
+                not wants_ntfy or final_state["ntfy_sent"]
             )
 
             if sent_ok and all_required_sent:
@@ -202,10 +233,7 @@ def dispatch_notifications(limit: int = 50, dry_run: bool = False, debug: bool =
 
 
 def _bootstrap_notification_settings(session: Session) -> int:
-    existing = {
-        row[0]
-        for row in session.execute(select(NotificationSetting.type))
-    }
+    existing = {row[0] for row in session.execute(select(NotificationSetting.type))}
 
     missing = [tp for tp in DEFAULT_NOTIFICATION_TYPES if tp not in existing]
     if not missing:
@@ -224,7 +252,9 @@ def _bootstrap_notification_settings(session: Session) -> int:
     return len(missing)
 
 
-def _load_pending_items(session: Session, limit: int) -> list[tuple[Item, NotificationSetting | None]]:
+def _load_pending_items(
+    session: Session, limit: int
+) -> list[tuple[Item, NotificationSetting | None]]:
     stmt = (
         select(Item, NotificationSetting)
         .outerjoin(NotificationSetting, NotificationSetting.type == Item.type)
@@ -279,8 +309,16 @@ def _read_email_config(settings: Settings) -> EmailConfig:
         password=settings.smtp_password or None,
         sender=settings.email_from or None,
         recipients=recipients,
-        use_ssl=settings.smtp_use_ssl if settings.smtp_use_ssl is not None else (port == 465),
-        starttls=settings.smtp_starttls if settings.smtp_starttls is not None else (port != 465),
+        use_ssl=(
+            settings.smtp_use_ssl
+            if settings.smtp_use_ssl is not None
+            else (port == 465)
+        ),
+        starttls=(
+            settings.smtp_starttls
+            if settings.smtp_starttls is not None
+            else (port != 465)
+        ),
     )
 
 
@@ -292,7 +330,9 @@ def _read_ntfy_config(settings: Settings) -> NtfyConfig:
     )
 
 
-def _send_email(item: Item, cfg: EmailConfig, s3_client=None, settings: Settings | None = None) -> None:
+def _send_email(
+    item: Item, cfg: EmailConfig, s3_client=None, settings: Settings | None = None
+) -> None:
     if not cfg.enabled:
         raise RuntimeError("email channel is not configured")
 
@@ -306,18 +346,23 @@ def _send_email(item: Item, cfg: EmailConfig, s3_client=None, settings: Settings
         for att in item.attachments:
             if att.blob_key:
                 try:
-                    data = download_blob(s3_client, settings.blob_s3_bucket, att.blob_key)
+                    data = download_blob(
+                        s3_client, settings.blob_s3_bucket, att.blob_key
+                    )
                     content_type = att.content_type or guess_content_type(att.filename)
                     maintype, _, subtype = content_type.partition("/")
-                    msg.add_attachment(data, maintype=maintype, subtype=subtype, filename=att.filename)
+                    msg.add_attachment(
+                        data, maintype=maintype, subtype=subtype, filename=att.filename
+                    )
                 except Exception as exc:
-                    import logging
-                    logging.getLogger(__name__).warning(
+                    logger.warning(
                         "Could not attach blob %s to email: %s", att.blob_key, exc
                     )
 
     if cfg.use_ssl:
-        server: smtplib.SMTP | smtplib.SMTP_SSL = smtplib.SMTP_SSL(cfg.host, cfg.port, timeout=30)
+        server: smtplib.SMTP | smtplib.SMTP_SSL = smtplib.SMTP_SSL(
+            cfg.host, cfg.port, timeout=30
+        )
     else:
         server = smtplib.SMTP(cfg.host, cfg.port, timeout=30)
 
@@ -336,7 +381,13 @@ def _send_email(item: Item, cfg: EmailConfig, s3_client=None, settings: Settings
             pass
 
 
-def _send_ntfy(item: Item, cfg: NtfyConfig, topic: str, s3_client=None, settings: Settings | None = None) -> None:
+def _send_ntfy(
+    item: Item,
+    cfg: NtfyConfig,
+    topic: str,
+    s3_client=None,
+    settings: Settings | None = None,
+) -> None:
     if not cfg.url:
         raise RuntimeError("ntfy url is missing")
 
@@ -361,10 +412,10 @@ def _send_ntfy(item: Item, cfg: NtfyConfig, topic: str, s3_client=None, settings
                     headers["Attach"] = presigned
                     headers["Filename"] = att.filename
                 except Exception as exc:
-                    import logging
-                    logging.getLogger(__name__).warning(
+                    logger.warning(
                         "Could not generate presigned URL for ntfy attachment %s: %s",
-                        att.blob_key, exc,
+                        att.blob_key,
+                        exc,
                     )
                 break  # one photo attachment per notification
 
