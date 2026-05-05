@@ -11,13 +11,18 @@ import re
 
 from bs4 import BeautifulSoup
 
+from skoleintra.db.identity import ChildSnapshot
 from skoleintra.scraper.session import PortalSession
 
 logger = logging.getLogger(__name__)
+_CHILD_HREF_RE = re.compile(r"^(/[^/]+){3}/Index$")
+_CHILD_SOURCE_ID_RE = re.compile(r"/parent/([^/]+)/")
 
 
-def get_children(portal: PortalSession, index_soup: BeautifulSoup) -> dict[str, str]:
-    """Return a mapping of child name → URL prefix from the index page.
+def get_child_snapshots(
+    portal: PortalSession, index_soup: BeautifulSoup
+) -> list[ChildSnapshot]:
+    """Return the visible children with canonical source IDs and URL prefixes.
 
     Parameters
     ----------
@@ -28,10 +33,10 @@ def get_children(portal: PortalSession, index_soup: BeautifulSoup) -> dict[str, 
 
     Returns
     -------
-    dict[str, str]
-        e.g. ``{"Andrea 0A": "https://school.foraldreintra.dk/parent/1234/Andrea"}``
+    list[ChildSnapshot]
+        e.g. ``[ChildSnapshot(source_id="1234", display_name="Andrea 0A", ...)]``
     """
-    children: dict[str, str] = {}
+    children: list[ChildSnapshot] = []
     seen_urls: set[str] = set()
 
     # The personal menu button label is the name of the "first" child
@@ -42,7 +47,7 @@ def get_children(portal: PortalSession, index_soup: BeautifulSoup) -> dict[str, 
 
     # Navigation links for each child follow the pattern:
     # /parent/<id>/<name>/Index
-    for a in index_soup.find_all("a", href=re.compile(r"^(/[^/]+){3}/Index$")):
+    for a in index_soup.find_all("a", href=_CHILD_HREF_RE):
         href: str = a["href"]
         url_prefix = href.rsplit("/", 1)[0].rstrip("/")
         abs_prefix = portal.abs_url(url_prefix)
@@ -51,9 +56,16 @@ def get_children(portal: PortalSession, index_soup: BeautifulSoup) -> dict[str, 
         seen_urls.add(abs_prefix)
 
         name = a.get_text(strip=True) or first_child_name
-        if name and name not in children:
-            logger.debug("Found child %r → %s", name, abs_prefix)
-            children[name] = abs_prefix
+        source_id = _extract_child_source_id(abs_prefix)
+        if name and source_id:
+            logger.debug("Found child %r (%s) → %s", name, source_id, abs_prefix)
+            children.append(
+                ChildSnapshot(
+                    source_id=source_id,
+                    display_name=name,
+                    url_prefix=abs_prefix,
+                )
+            )
 
     if not children:
         logger.warning(
@@ -61,6 +73,24 @@ def get_children(portal: PortalSession, index_soup: BeautifulSoup) -> dict[str, 
             "The portal structure may have changed."
         )
     else:
-        logger.info("Children found: %s", ", ".join(sorted(children)))
+        logger.info(
+            "Children found: %s",
+            ", ".join(sorted(child.display_name for child in children)),
+        )
 
     return children
+
+
+def get_children(portal: PortalSession, index_soup: BeautifulSoup) -> dict[str, str]:
+    """Return a legacy mapping of child name → URL prefix from the index page."""
+    return {
+        child.display_name: child.url_prefix or ""
+        for child in get_child_snapshots(portal, index_soup)
+    }
+
+
+def _extract_child_source_id(url_prefix: str) -> str | None:
+    match = _CHILD_SOURCE_ID_RE.search(url_prefix)
+    if match:
+        return match.group(1)
+    return None

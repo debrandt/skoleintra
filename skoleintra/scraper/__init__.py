@@ -18,9 +18,10 @@ from datetime import datetime
 from skoleintra.blobs.client import get_s3_client
 from skoleintra.blobs.download import download_pending_attachments
 from skoleintra.db import session_scope
-from skoleintra.db.upsert import upsert_attachment, upsert_child, upsert_item
+from skoleintra.db.identity import sync_child_scope
+from skoleintra.db.upsert import upsert_attachment, upsert_item
 from skoleintra.photos import prune_photo_blobs, sync_attachment_blob
-from skoleintra.scraper.children import get_children
+from skoleintra.scraper.children import get_child_snapshots
 from skoleintra.scraper.login import login
 from skoleintra.scraper.pages import messages as messages_scraper
 from skoleintra.scraper.pages import photos as photos_scraper
@@ -93,9 +94,9 @@ def run_scrape(
     # ------------------------------------------------------------------
     # Discover children
     # ------------------------------------------------------------------
-    children = get_children(portal, index_soup)
-    result.children_found = len(children)
-    if not children:
+    child_snapshots = get_child_snapshots(portal, index_soup)
+    result.children_found = len(child_snapshots)
+    if not child_snapshots:
         result.errors.append("No children found on the index page")
         return result
 
@@ -104,10 +105,23 @@ def run_scrape(
     # ------------------------------------------------------------------
     with session_scope() as db_session:
         result.photo_blobs_pruned = prune_photo_blobs(db_session, photo_retention_days)
+        synced_children = sync_child_scope(
+            db_session,
+            school_hostname=settings.hostname,
+            discovered=child_snapshots,
+            scope_succeeded=True,
+        )
+        child_by_source_id = {
+            child.source_id: child
+            for child in synced_children
+            if child.source_id is not None
+        }
 
-        for child_name, child_url_prefix in sorted(children.items()):
+        for child_snapshot in sorted(child_snapshots, key=lambda child: child.display_name):
+            child_name = child_snapshot.display_name
+            child_url_prefix = child_snapshot.url_prefix or ""
             logger.info("Processing child: %s", child_name)
-            child_obj = upsert_child(db_session, child_name, settings.hostname)
+            child_obj = child_by_source_id[child_snapshot.source_id]
 
             # Messages
             try:

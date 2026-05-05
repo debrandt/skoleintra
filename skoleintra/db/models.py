@@ -23,8 +23,10 @@ class Child(Base):
     __tablename__ = "children"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     school_hostname: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_present: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -36,10 +38,33 @@ class Child(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("name", "school_hostname", name="uq_child_name_hostname"),
+        UniqueConstraint("school_hostname", "source_id", name="uq_child_source_hostname"),
     )
 
     items: Mapped[list["Item"]] = relationship("Item", back_populates="child")
+
+
+class Group(Base):
+    __tablename__ = "groups"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    school_hostname: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_present: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        UniqueConstraint("school_hostname", "source_id", name="uq_group_source_hostname"),
+    )
 
 
 class Item(Base):
