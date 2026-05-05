@@ -30,6 +30,10 @@ PostgreSQL, with a planned web UI and notification dispatcher.
 | `EMAIL_TO` | Recipient address (Phase 3) | — |
 | `NTFY_URL` | ntfy server URL (Phase 3) | — |
 | `NTFY_TOPIC` | ntfy topic (Phase 3) | — |
+| `ALERT_SMTP_HOST`, `ALERT_SMTP_PORT`, `ALERT_SMTP_USERNAME`, `ALERT_SMTP_PASSWORD` | SMTP settings for operational alerts | — |
+| `ALERT_EMAIL_FROM`, `ALERT_EMAIL_TO` | Email sender and recipients for operational alerts | — |
+| `ALERT_NTFY_URL` | ntfy server URL for operational alerts | — |
+| `ALERT_NTFY_TOPIC`, `ALERT_NTFY_TOKEN` | ntfy routing for operational alerts | — |
 
 ---
 

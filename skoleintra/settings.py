@@ -37,6 +37,20 @@ class Settings(BaseSettings):
     ntfy_topic: str = Field(default="", validation_alias="NTFY_TOPIC")
     ntfy_token: str = Field(default="", validation_alias="NTFY_TOKEN")
 
+    # Operational alerts — separate from parent-facing content notifications
+    alert_smtp_host: str = Field(default="", validation_alias="ALERT_SMTP_HOST")
+    alert_smtp_port: int = Field(default=587, validation_alias="ALERT_SMTP_PORT")
+    alert_smtp_username: str = Field(default="", validation_alias="ALERT_SMTP_USERNAME")
+    alert_smtp_password: str = Field(default="", validation_alias="ALERT_SMTP_PASSWORD")
+    alert_email_from: str = Field(default="", validation_alias="ALERT_EMAIL_FROM")
+    alert_email_to: str = Field(default="", validation_alias="ALERT_EMAIL_TO")
+    alert_smtp_use_ssl: bool | None = Field(default=None, validation_alias="ALERT_SMTP_USE_SSL")
+    alert_smtp_starttls: bool | None = Field(default=None, validation_alias="ALERT_SMTP_STARTTLS")
+
+    alert_ntfy_url: str = Field(default="", validation_alias="ALERT_NTFY_URL")
+    alert_ntfy_topic: str = Field(default="", validation_alias="ALERT_NTFY_TOPIC")
+    alert_ntfy_token: str = Field(default="", validation_alias="ALERT_NTFY_TOKEN")
+
     # Portal credentials / connection
     hostname: str = ""
     username: str = ""

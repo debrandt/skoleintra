@@ -21,6 +21,7 @@ from skoleintra.db import session_scope
 from skoleintra.db.identity import sync_child_scope
 from skoleintra.db.upsert import upsert_attachment, upsert_item
 from skoleintra.photos import prune_photo_blobs, sync_attachment_blob
+from skoleintra.operational_alerts import OperationalCheck
 from skoleintra.scraper.children import get_child_snapshots
 from skoleintra.scraper.login import login
 from skoleintra.scraper.pages import messages as messages_scraper
@@ -43,6 +44,7 @@ class ScrapeResult:
     photo_blobs_skipped_old: int = 0
     photo_blobs_skipped_non_photo: int = 0
     errors: list[str] = field(default_factory=list)
+    operational_checks: list[OperationalCheck] = field(default_factory=list)
 
 
 def run_scrape(
@@ -89,7 +91,30 @@ def run_scrape(
         msg = f"Login failed: {exc}"
         logger.error(msg)
         result.errors.append(msg)
+        result.operational_checks.append(
+            OperationalCheck(
+                key=f"scrape.login:{settings.hostname}",
+                subsystem="scrape.login",
+                scope=settings.hostname,
+                severity="critical",
+                status="failed",
+                summary="Portal login failed",
+                detail=str(exc),
+            )
+        )
         return result
+
+    result.operational_checks.append(
+        OperationalCheck(
+            key=f"scrape.login:{settings.hostname}",
+            subsystem="scrape.login",
+            scope=settings.hostname,
+            severity="critical",
+            status="recovered",
+            summary="Portal login recovered",
+            detail="Portal login succeeded",
+        )
+    )
 
     # ------------------------------------------------------------------
     # Discover children
