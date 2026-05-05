@@ -4,6 +4,24 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Check formatting and lint rules in Nix dev shell
+        run: |
+          nix develop -c black --check .
+          nix develop -c isort --check-only .
+          nix develop -c pylint skoleintra
+          nix develop -c pylint \
+            --disable=missing-module-docstring,missing-function-docstring,missing-class-docstring,protected-access,too-few-public-methods,duplicate-code,redefined-outer-name \
+            tests
+
   test:
     runs-on: ubuntu-latest
 

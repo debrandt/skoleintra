@@ -1,3 +1,5 @@
+"""FastAPI routes for the dashboard, item list, and notification settings UI."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -20,6 +22,7 @@ templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
 
 def get_db() -> Session:
+    """Yield a request-scoped database session."""
     db = SessionLocal()
     try:
         yield db
@@ -29,16 +32,11 @@ def get_db() -> Session:
 
 def _ensure_notification_settings(db: Session) -> None:
     types_from_items = {
-        row[0]
-        for row in db.execute(select(Item.type).distinct())
-        if row[0]
+        row[0] for row in db.execute(select(Item.type).distinct()) if row[0]
     }
     desired_types = set(DEFAULT_NOTIFICATION_TYPES) | types_from_items
 
-    existing = {
-        row[0]
-        for row in db.execute(select(NotificationSetting.type))
-    }
+    existing = {row[0] for row in db.execute(select(NotificationSetting.type))}
     missing = desired_types - existing
     if not missing:
         return
@@ -57,13 +55,18 @@ def _ensure_notification_settings(db: Session) -> None:
 
 @router.get("/")
 def dashboard(request: Request, db: Session = Depends(get_db)):
+    """Render the dashboard with top-level scrape and notification counts."""
     total_items = db.scalar(select(func.count()).select_from(Item)) or 0
-    unread_items = db.scalar(
-        select(func.count()).select_from(Item).where(Item.is_read.is_(False))
-    ) or 0
-    pending_notifications = db.scalar(
-        select(func.count()).select_from(Item).where(Item.notify_sent.is_(False))
-    ) or 0
+    unread_items = (
+        db.scalar(select(func.count()).select_from(Item).where(Item.is_read.is_(False)))
+        or 0
+    )
+    pending_notifications = (
+        db.scalar(
+            select(func.count()).select_from(Item).where(Item.notify_sent.is_(False))
+        )
+        or 0
+    )
 
     latest_stmt = (
         select(Item)
@@ -97,6 +100,7 @@ def list_items(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=25, ge=1, le=100),
 ):
+    """Render the filtered item list view."""
     stmt = select(Item).options(joinedload(Item.child))
 
     if child_id is not None:
@@ -127,8 +131,7 @@ def list_items(
 
     total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     pages = max(1, (total + page_size - 1) // page_size)
-    if page > pages:
-        page = pages
+    page = min(page, pages)
 
     offset = (page - 1) * page_size
     items = list(db.scalars(stmt.offset(offset).limit(page_size)).all())
@@ -167,6 +170,7 @@ def list_items(
 
 @router.get("/items/{item_id}")
 def item_detail(request: Request, item_id: int, db: Session = Depends(get_db)):
+    """Render the detail view for a single scraped item."""
     item = db.get(Item, item_id)
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -198,6 +202,7 @@ def set_item_read(
     db: Session = Depends(get_db),
     read: bool | None = Form(default=None),
 ):
+    """Toggle or set the read-state flag for a single item."""
     item = db.get(Item, item_id)
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -211,6 +216,7 @@ def set_item_read(
 
 @router.get("/settings/notifications")
 def notification_settings_page(request: Request, db: Session = Depends(get_db)):
+    """Render the notification settings form."""
     _ensure_notification_settings(db)
     rows = list(
         db.scalars(
@@ -228,6 +234,7 @@ def notification_settings_page(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/settings/notifications")
 async def save_notification_settings(request: Request, db: Session = Depends(get_db)):
+    """Persist notification channel preferences from the settings form."""
     _ensure_notification_settings(db)
     form = await request.form()
 
@@ -252,11 +259,13 @@ async def save_notification_settings(request: Request, db: Session = Depends(get
 
 @router.get("/healthz")
 def healthz() -> dict[str, Any]:
+    """Return a minimal healthcheck payload for uptime probes."""
     return {"ok": True}
 
 
 @router.get("/blobs/{attachment_id}")
 def serve_blob(request: Request, attachment_id: int, db: Session = Depends(get_db)):
+    """Redirect to a stored blob URL or fall back to the original portal URL."""
     att = db.get(Attachment, attachment_id)
     if att is None:
         raise HTTPException(status_code=404, detail="Attachment not found")
@@ -277,4 +286,3 @@ def serve_blob(request: Request, attachment_id: int, db: Session = Depends(get_d
 
     presigned = generate_presigned_url(s3_client, settings.blob_s3_bucket, att.blob_key)
     return RedirectResponse(url=presigned, status_code=302)
-

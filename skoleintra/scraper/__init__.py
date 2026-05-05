@@ -20,8 +20,8 @@ from skoleintra.blobs.download import download_pending_attachments
 from skoleintra.db import session_scope
 from skoleintra.db.identity import sync_child_scope
 from skoleintra.db.upsert import upsert_attachment, upsert_item
-from skoleintra.photos import prune_photo_blobs, sync_attachment_blob
 from skoleintra.operational_alerts import OperationalCheck
+from skoleintra.photos import prune_photo_blobs, sync_attachment_blob
 from skoleintra.scraper.children import get_child_snapshots
 from skoleintra.scraper.login import login
 from skoleintra.scraper.pages import messages as messages_scraper
@@ -34,6 +34,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ScrapeResult:
+    """Summary counters and error details from a scrape run."""
+
     children_found: int = 0
     items_new: int = 0
     items_updated: int = 0
@@ -79,7 +81,9 @@ def run_scrape(
     # ------------------------------------------------------------------
     # Login
     # ------------------------------------------------------------------
-    logger.info("Logging in to %s (login_type=%s)", settings.hostname, settings.login_type)
+    logger.info(
+        "Logging in to %s (login_type=%s)", settings.hostname, settings.login_type
+    )
     try:
         index_soup = login(
             portal,
@@ -142,7 +146,9 @@ def run_scrape(
             if child.source_id is not None
         }
 
-        for child_snapshot in sorted(child_snapshots, key=lambda child: child.display_name):
+        for child_snapshot in sorted(
+            child_snapshots, key=lambda child: child.display_name
+        ):
             child_name = child_snapshot.display_name
             child_url_prefix = child_snapshot.url_prefix or ""
             logger.info("Processing child: %s", child_name)
@@ -186,7 +192,9 @@ def run_scrape(
                         result.items_updated += 1
 
                     for att in scraped.attachments:
-                        db_att = upsert_attachment(db_session, item_obj, att.filename, att.url)
+                        db_att = upsert_attachment(
+                            db_session, item_obj, att.filename, att.url
+                        )
                         result.attachments += 1
 
                         if scraped.type == photos_scraper.ITEM_TYPE:
@@ -200,8 +208,12 @@ def run_scrape(
                                 not_older_than=photo_not_older_than,
                                 debug=debug,
                             )
-                            result.photo_blobs_downloaded += photo_sync_result.downloaded
-                            result.photo_blobs_skipped_old += photo_sync_result.skipped_old
+                            result.photo_blobs_downloaded += (
+                                photo_sync_result.downloaded
+                            )
+                            result.photo_blobs_skipped_old += (
+                                photo_sync_result.skipped_old
+                            )
                             result.photo_blobs_skipped_non_photo += (
                                 photo_sync_result.skipped_non_photo
                             )

@@ -1,9 +1,11 @@
+"""Operational alert state management and channel dispatch helpers."""
+
 from __future__ import annotations
 
+import smtplib
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
-import smtplib
 from typing import Literal, Protocol
 
 import requests
@@ -12,13 +14,14 @@ from sqlalchemy.orm import Session
 from skoleintra.db.models import OperationalIncidentState
 from skoleintra.settings import Settings, get_settings
 
-
 AlertSeverity = Literal["critical", "partial"]
 AlertStatus = Literal["failed", "recovered"]
 
 
 @dataclass(slots=True)
 class OperationalCheck:
+    """One observed scrape/runtime health signal emitted by the application."""
+
     key: str
     subsystem: str
     scope: str | None
@@ -30,6 +33,8 @@ class OperationalCheck:
 
 @dataclass(slots=True)
 class OperationalAlert:
+    """A notification-ready alert produced from an operational check."""
+
     key: str
     subsystem: str
     scope: str | None
@@ -42,6 +47,8 @@ class OperationalAlert:
 
 @dataclass(slots=True)
 class OperationalIncident:
+    """Persisted incident state used to suppress duplicate operational alerts."""
+
     key: str
     subsystem: str
     scope: str | None
@@ -57,6 +64,8 @@ class OperationalIncident:
 
 @dataclass(slots=True)
 class AlertEmailConfig:
+    """SMTP configuration for operational-alert email delivery."""
+
     host: str | None
     port: int
     username: str | None
@@ -68,27 +77,39 @@ class AlertEmailConfig:
 
     @property
     def enabled(self) -> bool:
+        """Whether the email channel has enough configuration to send alerts."""
         return bool(self.host and self.sender and self.recipients)
 
 
 @dataclass(slots=True)
 class AlertNtfyConfig:
+    """ntfy configuration for operational-alert delivery."""
+
     url: str | None
     default_topic: str | None
     token: str | None
 
     @property
     def enabled(self) -> bool:
+        """Whether the ntfy channel has enough configuration to send alerts."""
         return bool(self.url and self.default_topic)
 
 
 class OperationalIncidentStore(Protocol):
-    def get(self, key: str) -> OperationalIncident | None: ...
+    """Persistence interface used by the alert service."""
 
-    def save(self, incident: OperationalIncident) -> None: ...
+    def get(self, key: str) -> OperationalIncident | None:
+        """Load the incident state for one alert key."""
+        raise NotImplementedError
+
+    def save(self, incident: OperationalIncident) -> None:
+        """Persist updated incident state."""
+        raise NotImplementedError
 
 
 class OperationalAlertService:
+    """Convert checks into incidents and alerts with repeat suppression."""
+
     def __init__(self, store: OperationalIncidentStore) -> None:
         self._store = store
 
@@ -98,10 +119,13 @@ class OperationalAlertService:
         *,
         observed_at: datetime,
     ) -> list[OperationalAlert]:
+        """Record a check observation and return any alerts that should be emitted."""
         incident = self._store.get(check.key)
 
         if check.status == "failed":
-            return self._observe_failure(check, incident=incident, observed_at=observed_at)
+            return self._observe_failure(
+                check, incident=incident, observed_at=observed_at
+            )
 
         return self._observe_recovery(check, incident=incident, observed_at=observed_at)
 
@@ -180,7 +204,9 @@ class OperationalAlertService:
         return observed_at - incident.last_alerted_at >= timedelta(days=1)
 
     @staticmethod
-    def _to_alert(check: OperationalCheck, *, observed_at: datetime) -> OperationalAlert:
+    def _to_alert(
+        check: OperationalCheck, *, observed_at: datetime
+    ) -> OperationalAlert:
         return OperationalAlert(
             key=check.key,
             subsystem=check.subsystem,
@@ -194,10 +220,13 @@ class OperationalAlertService:
 
 
 class SqlOperationalIncidentStore:
+    """SQLAlchemy-backed incident store implementation."""
+
     def __init__(self, session: Session) -> None:
         self._session = session
 
     def get(self, key: str) -> OperationalIncident | None:
+        """Load the current incident state for one alert key."""
         row = self._session.get(OperationalIncidentState, key)
         if row is None:
             return None
@@ -216,6 +245,7 @@ class SqlOperationalIncidentStore:
         )
 
     def save(self, incident: OperationalIncident) -> None:
+        """Insert or update persisted incident state."""
         row = self._session.get(OperationalIncidentState, incident.key)
         if row is None:
             row = OperationalIncidentState(key=incident.key)
@@ -235,11 +265,10 @@ class SqlOperationalIncidentStore:
 
 
 def read_operational_email_config(settings: Settings) -> AlertEmailConfig:
+    """Build the operational-alert email config from runtime settings."""
     port = settings.alert_smtp_port
     recipients = [
-        part.strip()
-        for part in settings.alert_email_to.split(",")
-        if part.strip()
+        part.strip() for part in settings.alert_email_to.split(",") if part.strip()
     ]
     return AlertEmailConfig(
         host=settings.alert_smtp_host or None,
@@ -248,12 +277,21 @@ def read_operational_email_config(settings: Settings) -> AlertEmailConfig:
         password=settings.alert_smtp_password or None,
         sender=settings.alert_email_from or None,
         recipients=recipients,
-        use_ssl=settings.alert_smtp_use_ssl if settings.alert_smtp_use_ssl is not None else (port == 465),
-        starttls=settings.alert_smtp_starttls if settings.alert_smtp_starttls is not None else (port != 465),
+        use_ssl=(
+            settings.alert_smtp_use_ssl
+            if settings.alert_smtp_use_ssl is not None
+            else (port == 465)
+        ),
+        starttls=(
+            settings.alert_smtp_starttls
+            if settings.alert_smtp_starttls is not None
+            else (port != 465)
+        ),
     )
 
 
 def read_operational_ntfy_config(settings: Settings) -> AlertNtfyConfig:
+    """Build the operational-alert ntfy config from runtime settings."""
     return AlertNtfyConfig(
         url=settings.alert_ntfy_url or None,
         default_topic=settings.alert_ntfy_topic or None,
@@ -268,6 +306,7 @@ def dispatch_operational_checks(
     settings: Settings | None = None,
     observed_at: datetime | None = None,
 ) -> list[OperationalAlert]:
+    """Persist checks, emit any resulting alerts, and dispatch enabled channels."""
     if not checks:
         return []
 
@@ -284,7 +323,9 @@ def dispatch_operational_checks(
 
     if not email_cfg.enabled and not ntfy_cfg.enabled:
         if emitted:
-            print("alert: no channels configured; set ALERT_SMTP_*/ALERT_NTFY_* values in .env")
+            print(
+                "alert: no channels configured; set ALERT_SMTP_*/ALERT_NTFY_* values in .env"
+            )
         return emitted
 
     for alert in emitted:
@@ -307,7 +348,9 @@ def _send_operational_email(alert: OperationalAlert, cfg: AlertEmailConfig) -> N
     msg.set_content(_operational_text(alert))
 
     if cfg.use_ssl:
-        server: smtplib.SMTP | smtplib.SMTP_SSL = smtplib.SMTP_SSL(cfg.host, cfg.port, timeout=30)
+        server: smtplib.SMTP | smtplib.SMTP_SSL = smtplib.SMTP_SSL(
+            cfg.host, cfg.port, timeout=30
+        )
     else:
         server = smtplib.SMTP(cfg.host, cfg.port, timeout=30)
 
@@ -316,7 +359,9 @@ def _send_operational_email(alert: OperationalAlert, cfg: AlertEmailConfig) -> N
             server.starttls()
         if cfg.username:
             if not cfg.password:
-                raise RuntimeError("ALERT_SMTP_USERNAME is set but ALERT_SMTP_PASSWORD is missing")
+                raise RuntimeError(
+                    "ALERT_SMTP_USERNAME is set but ALERT_SMTP_PASSWORD is missing"
+                )
             server.login(cfg.username, cfg.password)
         server.send_message(msg)
     finally:
@@ -326,7 +371,9 @@ def _send_operational_email(alert: OperationalAlert, cfg: AlertEmailConfig) -> N
             pass
 
 
-def _send_operational_ntfy(alert: OperationalAlert, cfg: AlertNtfyConfig, topic: str) -> None:
+def _send_operational_ntfy(
+    alert: OperationalAlert, cfg: AlertNtfyConfig, topic: str
+) -> None:
     if not cfg.url:
         raise RuntimeError("operational ntfy url is missing")
 
@@ -379,7 +426,10 @@ def _operational_markdown(alert: OperationalAlert) -> str:
 
 
 def _operational_tags(alert: OperationalAlert) -> list[str]:
-    tags = ["warning" if alert.severity == "critical" else "information_source", "school"]
+    tags = [
+        "warning" if alert.severity == "critical" else "information_source",
+        "school",
+    ]
     if alert.status == "recovered":
         tags[0] = "white_check_mark"
     return tags

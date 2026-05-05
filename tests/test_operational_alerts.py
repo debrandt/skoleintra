@@ -41,15 +41,16 @@ def test_critical_scrape_login_failure_alerts_immediately_repeats_daily_and_reco
     )
 
     initial_alerts = service.observe(failure, observed_at=first_seen)
-    assert [(alert.status, alert.severity, alert.subsystem, alert.scope) for alert in initial_alerts] == [
-        ("failed", "critical", "scrape.login", "aaskolen.m.skoleintra.dk")
-    ]
+    assert [
+        (alert.status, alert.severity, alert.subsystem, alert.scope)
+        for alert in initial_alerts
+    ] == [("failed", "critical", "scrape.login", "aaskolen.m.skoleintra.dk")]
 
     same_day_alerts = service.observe(
         failure,
         observed_at=first_seen + timedelta(hours=12),
     )
-    assert same_day_alerts == []
+    assert not same_day_alerts
 
     daily_repeat_alerts = service.observe(
         failure,
@@ -75,7 +76,7 @@ def test_critical_scrape_login_failure_alerts_immediately_repeats_daily_and_reco
     ]
 
 
-def test_run_scrape_emits_structured_login_failure_check(monkeypatch, tmp_path):
+def test_run_scrape_emits_structured_login_failure_check(monkeypatch):
     class DummyPortal:
         def __init__(self, hostname: str, state_dir: str) -> None:
             self.hostname = hostname
@@ -99,9 +100,10 @@ def test_run_scrape_emits_structured_login_failure_check(monkeypatch, tmp_path):
     )
 
     assert result.errors == ["Login failed: portal unavailable"]
-    assert [(check.status, check.severity, check.subsystem, check.scope) for check in result.operational_checks] == [
-        ("failed", "critical", "scrape.login", "aaskolen.m.skoleintra.dk")
-    ]
+    assert [
+        (check.status, check.severity, check.subsystem, check.scope)
+        for check in result.operational_checks
+    ] == [("failed", "critical", "scrape.login", "aaskolen.m.skoleintra.dk")]
 
 
 def test_operational_alert_config_is_read_from_alert_specific_settings(

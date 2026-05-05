@@ -23,6 +23,7 @@ ITEM_TYPE = "photo"
 
 
 def scrape(portal: PortalSession, child_url_prefix: str) -> list[ScrapedItem]:
+    """Scrape photo albums for one child and return them as ``ScrapedItem`` rows."""
     url = f"{child_url_prefix}/photos/albums"
     logger.info("Fetching photo albums from %s", url)
     resp = portal.get(url)
@@ -63,7 +64,8 @@ def scrape(portal: PortalSession, child_url_prefix: str) -> list[ScrapedItem]:
         external_id = _album_external_id(album_url)
         date = _extract_date(album_name, album_soup)
         attachments = [
-            ScrapedAttachment(filename=_filename_for(url), url=url) for url in image_urls
+            ScrapedAttachment(filename=_filename_for(url), url=url)
+            for url in image_urls
         ]
 
         body_parts = [f"<p>{album_name}</p>", f"<p>Photos: {len(image_urls)}</p>"]
@@ -126,7 +128,7 @@ def _album_author(album_link: BeautifulSoup) -> str:
         return ""
     text = author.get_text(" ", strip=True)
     prefix = "Oprettet af:"
-    return text[len(prefix):].strip() if text.startswith(prefix) else text
+    return text[len(prefix) :].strip() if text.startswith(prefix) else text
 
 
 def _album_external_id(url: str) -> str:

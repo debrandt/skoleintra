@@ -40,7 +40,7 @@ def test_extract_date_from_folder_name_iso():
 
 
 def test_album_metadata_and_photo_image_filtering():
-        html = """
+    html = """
         <a class="sk-photoalbums-list-item" href="/parent/5798/Iben/photos/albums/album/photos/6216">
             <div class="sk-photoalbum-list-item-title">Valmuestuen uge 17</div>
             <div class="sk-photoalbum-list-item-description">Album beskrivelse</div>
@@ -51,19 +51,22 @@ def test_album_metadata_and_photo_image_filtering():
             <img src="/file/photoalbum/6216/1000011430.jpg?t=123" />
         </div>
         """
-        soup = BeautifulSoup(html, "lxml")
-        album_link = soup.select_one("a.sk-photoalbums-list-item")
-        assert album_link is not None
-        assert _album_title(album_link) == "Valmuestuen uge 17"
-        assert _album_description(album_link) == "Album beskrivelse"
-        assert _album_author(album_link) == "Karina Frederiksen"
-        assert _album_external_id("/parent/5798/Iben/photos/albums/album/photos/6216") == "6216"
+    soup = BeautifulSoup(html, "lxml")
+    album_link = soup.select_one("a.sk-photoalbums-list-item")
+    assert album_link is not None
+    assert _album_title(album_link) == "Valmuestuen uge 17"
+    assert _album_description(album_link) == "Album beskrivelse"
+    assert _album_author(album_link) == "Karina Frederiksen"
+    assert (
+        _album_external_id("/parent/5798/Iben/photos/albums/album/photos/6216")
+        == "6216"
+    )
 
-        class DummyPortal:
-                def abs_url(self, path: str) -> str:
-                        if path.startswith("http"):
-                                return path
-                        return f"https://example.test{path}"
+    class DummyPortal:
+        def abs_url(self, path: str) -> str:
+            if path.startswith("http"):
+                return path
+            return f"https://example.test{path}"
 
-        urls = _extract_image_urls(soup, DummyPortal())
-        assert urls == ["https://example.test/file/photoalbum/6216/1000011430.jpg?t=123"]
+    urls = _extract_image_urls(soup, DummyPortal())
+    assert urls == ["https://example.test/file/photoalbum/6216/1000011430.jpg?t=123"]

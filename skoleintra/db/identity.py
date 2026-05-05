@@ -1,3 +1,5 @@
+"""Identity reconciliation helpers for children and groups discovered from the portal."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -10,6 +12,8 @@ from skoleintra.db.models import Child
 
 @dataclass(frozen=True, slots=True)
 class ArchivedChild:
+    """Persisted child identity state from the database."""
+
     source_id: str
     display_name: str
     school_hostname: str
@@ -18,6 +22,8 @@ class ArchivedChild:
 
 @dataclass(frozen=True, slots=True)
 class ChildSnapshot:
+    """Current child identity discovered during a scrape."""
+
     source_id: str
     display_name: str
     url_prefix: str | None = None
@@ -25,6 +31,8 @@ class ChildSnapshot:
 
 @dataclass(frozen=True, slots=True)
 class ChildReconciliationResult:
+    """Summary of reconciling archived and discovered child identities."""
+
     children: list[ArchivedChild]
     created: int
     renamed: int
@@ -32,6 +40,8 @@ class ChildReconciliationResult:
 
 @dataclass(frozen=True, slots=True)
 class ArchivedGroup:
+    """Persisted group identity state from the database."""
+
     source_id: str
     display_name: str
     school_hostname: str
@@ -40,12 +50,16 @@ class ArchivedGroup:
 
 @dataclass(frozen=True, slots=True)
 class GroupSnapshot:
+    """Current group identity discovered during a scrape."""
+
     source_id: str
     display_name: str
 
 
 @dataclass(frozen=True, slots=True)
 class GroupReconciliationResult:
+    """Summary of reconciling archived and discovered group identities."""
+
     groups: list[ArchivedGroup]
     created: int
     renamed: int
@@ -58,6 +72,7 @@ def reconcile_children(
     discovered: list[ChildSnapshot],
     scope_succeeded: bool,
 ) -> ChildReconciliationResult:
+    """Merge discovered children with archived child records for one school."""
     by_source_id = {child.source_id: child for child in archived}
     discovered_source_ids = {child.source_id for child in discovered}
     renamed = 0
@@ -119,6 +134,7 @@ def reconcile_groups(
     discovered: list[GroupSnapshot],
     scope_succeeded: bool,
 ) -> GroupReconciliationResult:
+    """Merge discovered groups with archived group records for one school."""
     by_source_id = {group.source_id: group for group in archived}
     discovered_source_ids = {group.source_id for group in discovered}
     renamed = 0
@@ -180,6 +196,7 @@ def sync_child_scope(
     discovered: list[ChildSnapshot],
     scope_succeeded: bool,
 ) -> list[Child]:
+    """Upsert discovered children for a school and mark missing rows as absent."""
     existing = list(
         session.execute(
             select(Child).where(Child.school_hostname == school_hostname)

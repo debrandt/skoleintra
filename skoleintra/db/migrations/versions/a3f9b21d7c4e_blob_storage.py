@@ -5,11 +5,11 @@ Revises: 6020f3a7eaa5
 Create Date: 2026-05-05 09:30:00.000000
 
 """
+
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "c91f4a2e5b6d"
@@ -21,7 +21,9 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.alter_column("attachments", "local_path", new_column_name="blob_key")
     op.add_column("attachments", sa.Column("content_type", sa.Text(), nullable=True))
-    op.add_column("attachments", sa.Column("size_bytes", sa.BigInteger(), nullable=True))
+    op.add_column(
+        "attachments", sa.Column("size_bytes", sa.BigInteger(), nullable=True)
+    )
 
 
 def downgrade() -> None:

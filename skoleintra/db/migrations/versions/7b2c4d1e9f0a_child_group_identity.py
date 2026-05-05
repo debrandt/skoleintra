@@ -8,9 +8,8 @@ Create Date: 2026-05-05 10:20:00.000000
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "7b2c4d1e9f0a"
@@ -20,7 +19,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column("children", sa.Column("source_id", sa.String(length=255), nullable=True))
+    op.add_column(
+        "children", sa.Column("source_id", sa.String(length=255), nullable=True)
+    )
     op.add_column(
         "children",
         sa.Column("is_present", sa.Boolean(), nullable=False, server_default=sa.true()),

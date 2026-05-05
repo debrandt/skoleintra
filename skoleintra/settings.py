@@ -1,4 +1,7 @@
+"""Application settings loaded from the environment and optional ``.env``."""
+
 import os
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -19,9 +22,7 @@ class Settings(BaseSettings):
     )
 
     # Database — no SKOLEINTRA_ prefix, matches standard convention
-    database_url: str = Field(
-        default="", validation_alias="DATABASE_URL"
-    )
+    database_url: str = Field(default="", validation_alias="DATABASE_URL")
 
     # Notifications — read directly from .env via explicit aliases
     smtp_host: str = Field(default="", validation_alias="SMTP_HOST")
@@ -44,8 +45,12 @@ class Settings(BaseSettings):
     alert_smtp_password: str = Field(default="", validation_alias="ALERT_SMTP_PASSWORD")
     alert_email_from: str = Field(default="", validation_alias="ALERT_EMAIL_FROM")
     alert_email_to: str = Field(default="", validation_alias="ALERT_EMAIL_TO")
-    alert_smtp_use_ssl: bool | None = Field(default=None, validation_alias="ALERT_SMTP_USE_SSL")
-    alert_smtp_starttls: bool | None = Field(default=None, validation_alias="ALERT_SMTP_STARTTLS")
+    alert_smtp_use_ssl: bool | None = Field(
+        default=None, validation_alias="ALERT_SMTP_USE_SSL"
+    )
+    alert_smtp_starttls: bool | None = Field(
+        default=None, validation_alias="ALERT_SMTP_STARTTLS"
+    )
 
     alert_ntfy_url: str = Field(default="", validation_alias="ALERT_NTFY_URL")
     alert_ntfy_topic: str = Field(default="", validation_alias="ALERT_NTFY_TOPIC")
@@ -64,17 +69,24 @@ class Settings(BaseSettings):
 
     # Blob / S3-compatible object storage (optional).
     # If BLOB_S3_BUCKET is not set, blob download is silently skipped.
-    blob_s3_endpoint_url: str | None = Field(default=None, validation_alias="BLOB_S3_ENDPOINT_URL")
+    blob_s3_endpoint_url: str | None = Field(
+        default=None, validation_alias="BLOB_S3_ENDPOINT_URL"
+    )
     blob_s3_bucket: str | None = Field(default=None, validation_alias="BLOB_S3_BUCKET")
-    blob_s3_access_key_id: str | None = Field(default=None, validation_alias="BLOB_S3_ACCESS_KEY_ID")
-    blob_s3_secret_access_key: str | None = Field(default=None, validation_alias="BLOB_S3_SECRET_ACCESS_KEY")
+    blob_s3_access_key_id: str | None = Field(
+        default=None, validation_alias="BLOB_S3_ACCESS_KEY_ID"
+    )
+    blob_s3_secret_access_key: str | None = Field(
+        default=None, validation_alias="BLOB_S3_SECRET_ACCESS_KEY"
+    )
     blob_s3_region: str = Field(default="us-east-1", validation_alias="BLOB_S3_REGION")
     blob_s3_prefix: str = Field(default="skoleintra", validation_alias="BLOB_S3_PREFIX")
-    
+
     # Photos
     photos_not_older_than: str = Field(default="")
     photo_retention_days: int | None = None
 
 
 def get_settings() -> Settings:
+    """Build a fresh settings object from the current environment."""
     return Settings()
