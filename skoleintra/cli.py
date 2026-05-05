@@ -47,7 +47,8 @@ def _cmd_migrate(args: argparse.Namespace) -> int:
 
 
 def _cmd_scrape(args: argparse.Namespace) -> int:
-    from skoleintra.db import init_db
+    from skoleintra.db import init_db, session_scope
+    from skoleintra.operational_alerts import dispatch_operational_checks
     from skoleintra.photos import parse_not_older_than_date
     from skoleintra.scraper import run_scrape
     from skoleintra.settings import get_settings
@@ -91,6 +92,13 @@ def _cmd_scrape(args: argparse.Namespace) -> int:
         photo_not_older_than=not_older_than,
         photo_retention_days=retention_days,
     )
+
+    with session_scope() as db_session:
+        dispatch_operational_checks(
+            db_session,
+            result.operational_checks,
+            settings=settings,
+        )
 
     print(
         f"\nScrape complete:"

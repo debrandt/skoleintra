@@ -135,3 +135,28 @@ class NotificationSetting(Base):
     email_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     ntfy_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     ntfy_topic: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
+class OperationalIncidentState(Base):
+    __tablename__ = "operational_incidents"
+
+    key: Mapped[str] = mapped_column(String(255), primary_key=True)
+    subsystem: Mapped[str] = mapped_column(String(64), nullable=False)
+    scope: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    severity: Mapped[str] = mapped_column(String(32), nullable=False)
+    summary: Mapped[str] = mapped_column(String(255), nullable=False)
+    detail: Mapped[str] = mapped_column(Text, nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    first_failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_alerted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_recovered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )

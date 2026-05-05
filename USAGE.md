@@ -74,6 +74,9 @@ SKOLEINTRA_STATE_DIR=/var/lib/skoleintra
 NTFY_URL=https://ntfy.your-domain.dk
 NTFY_TOPIC=skoleintra
 NTFY_TOKEN=tk_token
+ALERT_NTFY_URL=https://ntfy.your-domain.dk
+ALERT_NTFY_TOPIC=skoleintra-alerts
+ALTER_NTFY_TOKEN=tk_alert_token
 ```
 
 > `DATABASE_URL` uses the PostgreSQL Unix socket with peer authentication — no
@@ -444,4 +447,3 @@ mc ls local/skoleintra --recursive | head -20
 | **Graceful fallback** | If MinIO is unreachable or `BLOB_S3_BUCKET` is unset, the web UI falls back to the original portal URL and the scraper continues without uploading blobs. |
 | **Existing attachments** | Blobs are downloaded for any attachment with a null `blob_key`. Running `skoleintra scrape` after enabling MinIO will back-fill all historical attachments on the next cycle. |
 | **Photos** | When a photos scraper is added, photos will use the same pipeline — no additional configuration is needed. ntfy will deliver the first photo as an inline attachment via a presigned URL. |
-
