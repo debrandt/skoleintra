@@ -86,6 +86,9 @@ class Settings(BaseSettings):
     photos_not_older_than: str = Field(default="")
     photo_retention_days: int | None = None
 
+    # Response cache for repeated scrape runs
+    scrape_response_cache_seconds: int = 900
+
 
 def get_settings() -> Settings:
     """Build a fresh settings object from the current environment."""

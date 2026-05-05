@@ -25,7 +25,12 @@ logger = logging.getLogger(__name__)
 ITEM_TYPE = "message"
 
 
-def scrape(portal: PortalSession, child_url_prefix: str) -> list[ScrapedItem]:
+def scrape(
+    portal: PortalSession,
+    child_url_prefix: str,
+    *,
+    cache_ttl_seconds: int | None = None,
+) -> list[ScrapedItem]:
     """Fetch and parse all messages for one child.
 
     Parameters
@@ -60,7 +65,13 @@ def scrape(portal: PortalSession, child_url_prefix: str) -> list[ScrapedItem]:
             logger.debug("Skipping conversation with no LatestMessageId: %r", conv)
             continue
 
-        msgs = _load_thread(portal, child_url_prefix, thread_id, latest_mid)
+        msgs = _load_thread(
+            portal,
+            child_url_prefix,
+            thread_id,
+            latest_mid,
+            cache_ttl_seconds=cache_ttl_seconds,
+        )
         for raw_msg in msgs:
             item = _msg_to_scraped_item(raw_msg, thread_id)
             if item is not None:
@@ -100,6 +111,8 @@ def _load_thread(
     child_url_prefix: str,
     thread_id: str,
     latest_mid: str,
+    *,
+    cache_ttl_seconds: int | None = None,
 ) -> list[dict]:
     """Load the full message list for a conversation thread."""
     if thread_id:
@@ -119,7 +132,7 @@ def _load_thread(
     url = f"{child_url_prefix}{suffix}"
     logger.debug("Loading thread from %s", url)
     try:
-        resp = portal.get(url)
+        resp = portal.get(url, cache_ttl_seconds=cache_ttl_seconds)
         data = json.loads(resp.text)
     except Exception as exc:
         logger.warning("Could not load thread %s/%s: %s", thread_id, latest_mid, exc)
