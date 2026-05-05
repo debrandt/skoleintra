@@ -26,6 +26,7 @@ from skoleintra.scraper.children import get_child_snapshots
 from skoleintra.scraper.login import login
 from skoleintra.scraper.pages import messages as messages_scraper
 from skoleintra.scraper.pages import photos as photos_scraper
+from skoleintra.scraper.pages import weekplans as weekplans_scraper
 from skoleintra.scraper.session import PortalSession
 from skoleintra.settings import Settings
 
@@ -178,6 +179,19 @@ def run_scrape(
                 if debug:
                     portal.save_debug_artifact(
                         f"{child_name}_photos_error.html", str(exc)
+                    )
+
+            # Week plans
+            try:
+                weekplan_items = weekplans_scraper.scrape(portal, child_url_prefix)
+                scraped_items.extend(weekplan_items)
+            except Exception as exc:
+                msg = f"[{child_name}] weekplans scraper failed: {exc}"
+                logger.error(msg)
+                result.errors.append(msg)
+                if debug:
+                    portal.save_debug_artifact(
+                        f"{child_name}_weekplans_error.html", str(exc)
                     )
 
             for scraped in scraped_items:
