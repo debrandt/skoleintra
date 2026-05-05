@@ -155,6 +155,8 @@ def run_scrape(
                                 db_session,
                                 portal,
                                 db_att,
+                                s3_client=s3_client,
+                                settings=settings,
                                 item_date=scraped.date,
                                 not_older_than=photo_not_older_than,
                                 debug=debug,

@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from skoleintra.db.models import Attachment, AttachmentBlob, Child, Item
+from skoleintra.db.models import Attachment, Child, Item
 
 if TYPE_CHECKING:
     from skoleintra.scraper.models import ScrapedItem
@@ -111,39 +111,3 @@ def upsert_attachment(
     att = session.get(Attachment, row[0])
     assert att is not None
     return att
-
-
-def upsert_attachment_blob(
-    session: Session,
-    attachment: Attachment,
-    *,
-    blob: bytes,
-    sha256: str,
-    content_type: str | None,
-) -> AttachmentBlob:
-    """Upsert binary payload for an attachment and return the ORM instance."""
-    stmt = (
-        pg_insert(AttachmentBlob)
-        .values(
-            attachment_id=attachment.id,
-            content_type=content_type,
-            size_bytes=len(blob),
-            sha256=sha256,
-            blob=blob,
-        )
-        .on_conflict_do_update(
-            constraint="uq_attachment_blob_attachment",
-            set_={
-                "content_type": content_type,
-                "size_bytes": len(blob),
-                "sha256": sha256,
-                "blob": blob,
-            },
-        )
-        .returning(AttachmentBlob.id)
-    )
-    row = session.execute(stmt).fetchone()
-    assert row is not None
-    payload = session.get(AttachmentBlob, row[0])
-    assert payload is not None
-    return payload

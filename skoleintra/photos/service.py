@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from skoleintra.db.models import Attachment, AttachmentBlob
-from skoleintra.db.upsert import upsert_attachment_blob
+from skoleintra.blobs.client import guess_content_type, upload_blob
+from skoleintra.db.models import Attachment
+from skoleintra.settings import Settings
 
 if TYPE_CHECKING:
     from skoleintra.scraper.session import PortalSession
@@ -47,13 +46,19 @@ def sync_attachment_blob(
     portal: PortalSession,
     attachment: Attachment,
     *,
+    s3_client,
+    settings: Settings,
     item_date: datetime | None,
     not_older_than: datetime | None = None,
     debug: bool = False,
 ) -> PhotoSyncResult:
     result = PhotoSyncResult()
+    _ = db_session
 
-    if _has_blob(db_session, attachment.id):
+    if s3_client is None or not settings.blob_s3_bucket:
+        return result
+
+    if attachment.blob_key:
         return result
 
     if not_older_than is not None and item_date is not None:
@@ -63,47 +68,36 @@ def sync_attachment_blob(
 
     response = portal.get(attachment.url)
     payload = response.content
-    content_type = response.headers.get("Content-Type", "").split(";")[0].strip().lower() or None
+    content_type = (
+        response.headers.get("Content-Type", "").split(";")[0].strip().lower()
+        or guess_content_type(attachment.filename)
+    )
     if not _is_photo_attachment(attachment.filename, attachment.url, content_type):
         result.skipped_non_photo += 1
         return result
 
     if debug:
         print(
-            "photos: storing "
+            "photos: uploading "
             f"attachment_id={attachment.id} size={len(payload)} "
             f"content_type={content_type or 'unknown'}"
         )
 
-    upsert_attachment_blob(
-        db_session,
-        attachment,
-        blob=payload,
-        sha256=hashlib.sha256(payload).hexdigest(),
-        content_type=content_type,
-    )
+    item = attachment.item
+    prefix = settings.blob_s3_prefix.strip("/")
+    key = f"{prefix}/{item.child_id}/{item.type}/{item.id}/{attachment.filename}"
+    upload_blob(s3_client, settings.blob_s3_bucket, key, payload, content_type)
+    attachment.blob_key = key
+    attachment.content_type = content_type
+    attachment.size_bytes = len(payload)
     result.downloaded += 1
     return result
 
 
 def prune_photo_blobs(db_session: Session, retention_days: int | None) -> int:
-    if retention_days is None:
-        return 0
-    if retention_days < 0:
-        raise ValueError("retention_days must be >= 0")
-
-    keep_after = datetime.now(timezone.utc) - timedelta(days=retention_days)
-    deleted = db_session.execute(
-        delete(AttachmentBlob).where(AttachmentBlob.downloaded_at < keep_after)
-    )
-    return deleted.rowcount or 0
-
-
-def _has_blob(db_session: Session, attachment_id: int) -> bool:
-    existing = db_session.execute(
-        select(AttachmentBlob.id).where(AttachmentBlob.attachment_id == attachment_id)
-    ).fetchone()
-    return existing is not None
+    _ = db_session
+    _ = retention_days
+    return 0
 
 
 def _is_photo_attachment(filename: str, url: str, content_type: str | None) -> bool:

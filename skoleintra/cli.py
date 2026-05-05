@@ -16,7 +16,7 @@ def _upgrade_database(database_url: str) -> None:
     cfg = Config()
     cfg.set_main_option("script_location", "skoleintra.db:migrations")
     cfg.set_main_option("sqlalchemy.url", database_url)
-    alembic_command.upgrade(cfg, "heads")
+    alembic_command.upgrade(cfg, "head")
     logging.info("Migrations complete.")
 
 

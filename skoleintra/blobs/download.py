@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from skoleintra.blobs.client import guess_content_type, upload_blob
-from skoleintra.db.models import Attachment
+from skoleintra.db.models import Attachment, Item
 from skoleintra.scraper.session import PortalSession
 from skoleintra.settings import Settings
 
@@ -35,6 +35,7 @@ def download_pending_attachments(
         db_session.execute(
             select(Attachment)
             .options(joinedload(Attachment.item))
+            .where(Attachment.item.has(Item.type != "photo"))
             .where(Attachment.blob_key.is_(None))
         )
         .scalars()
