@@ -15,8 +15,8 @@
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
-        python = pkgs.python312;
+        pkgs = import nixpkgs { inherit system; config.allowUnfree = true; };
+        python = pkgs.python313;
 
         # The installable package
         skoleintra = python.pkgs.buildPythonApplication {
@@ -70,6 +70,8 @@
                 ipython
               ]
             ))
+            pkgs.nodejs_24
+            pkgs.github-copilot-cli
             pkgs.postgresql # for psql CLI
           ];
 
