@@ -6,7 +6,6 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
-    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -102,33 +101,6 @@ class Attachment(Base):
     )
 
     item: Mapped["Item"] = relationship("Item", back_populates="attachments")
-    blob: Mapped["AttachmentBlob | None"] = relationship(
-        "AttachmentBlob", back_populates="attachment", uselist=False
-    )
-
-
-class AttachmentBlob(Base):
-    __tablename__ = "attachment_blobs"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    attachment_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("attachments.id", ondelete="CASCADE"), nullable=False
-    )
-    content_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
-    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
-    blob: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
-    downloaded_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-    __table_args__ = (
-        UniqueConstraint("attachment_id", name="uq_attachment_blob_attachment"),
-    )
-
-    attachment: Mapped["Attachment"] = relationship(
-        "Attachment", back_populates="blob"
-    )
 
 
 class NotificationSetting(Base):
