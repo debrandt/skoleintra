@@ -31,6 +31,9 @@ class ScrapedItem:
     body_html: str
     date: datetime | None
 
+    message_body_html: str | None = None
+    message_quoted_body_html: str | None = None
+
     raw_json: dict | None = None
     """Raw JSON payload from the portal, stored for debugging."""
 

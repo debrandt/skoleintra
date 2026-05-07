@@ -177,6 +177,8 @@ def _msg_to_scraped_item(msg: dict, thread_id: str) -> ScrapedItem | None:
         sender=sender,
         body_html=body_html,
         date=date,
+        message_body_html=base_text or None,
+        message_quoted_body_html=prev_text or None,
         raw_json=msg,
         attachments=attachments,
     )

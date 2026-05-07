@@ -29,6 +29,8 @@ from skoleintra.settings import Settings, get_settings
 
 logger = logging.getLogger(__name__)
 
+MESSAGE_EMAIL_ATTACHMENT_INLINE_LIMIT_BYTES = 5 * 1024 * 1024
+
 DEFAULT_NOTIFICATION_TYPES = (
     "message",
     "homework",
@@ -337,15 +339,22 @@ def _send_email(
     if not cfg.enabled:
         raise RuntimeError("email channel is not configured")
 
+    attachment_links = _notification_attachment_links(
+        item, s3_client=s3_client, settings=settings
+    )
     msg = EmailMessage()
     msg["From"] = cfg.sender
     msg["To"] = ", ".join(cfg.recipients)
     msg["Subject"] = _subject_for(item)
-    msg.set_content(_plain_text_for(item))
+    msg.set_content(_plain_text_for(item, attachment_links=attachment_links))
 
     if s3_client is not None and settings is not None:
         for att in item.attachments:
             if att.blob_key:
+                if item.type == "message" and not _should_attach_message_blob_to_email(
+                    att
+                ):
+                    continue
                 try:
                     data = download_blob(
                         s3_client, settings.blob_s3_bucket, att.blob_key
@@ -401,6 +410,10 @@ def _send_ntfy(
     if cfg.token:
         headers["Authorization"] = f"Bearer {cfg.token}"
 
+    attachment_links = _notification_attachment_links(
+        item, s3_client=s3_client, settings=settings
+    )
+
     # For photo items, attach the first image blob as a presigned URL so ntfy
     # displays it inline in the notification.
     if item.type == "photo" and s3_client is not None and settings is not None:
@@ -422,7 +435,9 @@ def _send_ntfy(
 
     response = requests.post(
         url,
-        data=_ntfy_markdown_for(item).encode("utf-8"),
+        data=_ntfy_markdown_for(item, attachment_links=attachment_links).encode(
+            "utf-8"
+        ),
         headers=headers,
         timeout=20,
     )
@@ -461,11 +476,13 @@ def _subject_for(item: Item) -> str:
     return f"[Skoleintra:{item_type}] {title}"
 
 
-def _plain_text_for(item: Item) -> str:
+def _plain_text_for(
+    item: Item, *, attachment_links: list[tuple[str, str]] | None = None
+) -> str:
     title = _clean_text(item.title, default="(untitled)")
     sender = _clean_text(item.sender, default="unknown")
     item_type = _display_type_for_item(item)
-    body_txt = _body_text_from_html(item.body_html)
+    body_txt = _body_text_from_html(_notification_body_html(item))
 
     lines = [
         f"Type: {item_type}",
@@ -481,14 +498,21 @@ def _plain_text_for(item: Item) -> str:
         lines.append("")
         lines.append(body_txt)
 
+    if attachment_links:
+        lines.append("")
+        lines.append("Attachments:")
+        lines.extend(f"- {filename}: {url}" for filename, url in attachment_links)
+
     return "\n".join(lines)
 
 
-def _ntfy_markdown_for(item: Item) -> str:
+def _ntfy_markdown_for(
+    item: Item, *, attachment_links: list[tuple[str, str]] | None = None
+) -> str:
     title = _clean_text(item.title, default="(untitled)")
     sender = _clean_text(item.sender, default="unknown")
     item_type = _display_type_for_item(item)
-    body_txt = _body_text_from_html(item.body_html)
+    body_txt = _body_text_from_html(_notification_body_html(item))
 
     meta_parts = [f"`{item_type}`", sender]
     sent_at = _sent_at_for_item(item)
@@ -503,6 +527,11 @@ def _ntfy_markdown_for(item: Item) -> str:
     if body_txt:
         lines.append("")
         lines.append(body_txt)
+
+    if attachment_links:
+        lines.append("")
+        lines.append("Attachments:")
+        lines.extend(f"- {filename}: {url}" for filename, url in attachment_links)
 
     return "\n".join(lines)
 
@@ -533,6 +562,41 @@ def _body_text_from_html(body_html: str | None) -> str:
     txt = soup.get_text("\n")
     lines = [_collapse_ws(line) for line in txt.splitlines()]
     return "\n".join(line for line in lines if line)
+
+
+def _notification_body_html(item: Item) -> str | None:
+    if item.type == "message" and item.message_body_html:
+        return item.message_body_html
+    return item.body_html
+
+
+def _notification_attachment_links(
+    item: Item, *, s3_client=None, settings: Settings | None = None
+) -> list[tuple[str, str]]:
+    links: list[tuple[str, str]] = []
+    bucket = settings.blob_s3_bucket if settings is not None else None
+
+    for att in item.attachments:
+        url = att.url
+        if att.blob_key and s3_client is not None and bucket:
+            try:
+                url = generate_presigned_url(s3_client, bucket, att.blob_key)
+            except Exception as exc:
+                logger.warning(
+                    "Could not generate presigned URL for attachment %s: %s",
+                    att.blob_key,
+                    exc,
+                )
+        if url:
+            links.append((att.filename or url, url))
+
+    return links
+
+
+def _should_attach_message_blob_to_email(att) -> bool:
+    return att.size_bytes is not None and (
+        att.size_bytes <= MESSAGE_EMAIL_ATTACHMENT_INLINE_LIMIT_BYTES
+    )
 
 
 def _collapse_ws(value: str) -> str:
