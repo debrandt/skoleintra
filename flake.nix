@@ -76,6 +76,7 @@
             pkgs.nodejs_24
             pkgs.gh
             pkgs.github-copilot-cli
+            pkgs.minio
             pkgs.postgresql # for psql CLI
           ];
 
