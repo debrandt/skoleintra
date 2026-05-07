@@ -71,8 +71,8 @@ def test_email_only_inlines_small_attachments(monkeypatch):
     sent_messages = []
 
     class FakeSMTP:
-        def __init__(self, *args, **kwargs):
-            _ = args, kwargs
+        def __init__(self, *_args, **_kwargs):
+            pass
 
         def send_message(self, msg):
             sent_messages.append(msg)
