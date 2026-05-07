@@ -472,7 +472,12 @@ def _subject_for(item: Item) -> str:
 def _plain_text_for(
     item: Item, s3_client: Any | None = None, settings: Settings | None = None
 ) -> str:
-    """Build plain-text notification body, with presigned message attachment links."""
+    """Build plain-text notification body.
+
+    When ``s3_client`` and ``settings`` are provided, message attachments are
+    rendered as direct presigned blob links. Otherwise, links fall back to the
+    original portal attachment URLs.
+    """
     title = _clean_text(item.title, default="(untitled)")
     sender = _clean_text(item.sender, default="unknown")
     item_type = _display_type_for_item(item)
@@ -506,7 +511,12 @@ def _plain_text_for(
 def _ntfy_markdown_for(
     item: Item, s3_client: Any | None = None, settings: Settings | None = None
 ) -> str:
-    """Build markdown notification body, with presigned message attachment links."""
+    """Build markdown notification body.
+
+    When ``s3_client`` and ``settings`` are provided, message attachments are
+    rendered as direct presigned blob links. Otherwise, links fall back to the
+    original portal attachment URLs.
+    """
     title = _clean_text(item.title, default="(untitled)")
     sender = _clean_text(item.sender, default="unknown")
     item_type = _display_type_for_item(item)

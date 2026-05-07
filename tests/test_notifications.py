@@ -122,7 +122,7 @@ def test_email_only_inlines_small_attachments(monkeypatch):
     )
     settings = SimpleNamespace(blob_s3_bucket="private-bucket")
 
-    _send_email(item=item, cfg=cfg, s3_client=object(), settings=settings)
+    _send_email(item=item, cfg=cfg, s3_client=SimpleNamespace(), settings=settings)
 
     assert len(sent_messages) == 1
     attached_names = [part.get_filename() for part in sent_messages[0].iter_attachments()]
