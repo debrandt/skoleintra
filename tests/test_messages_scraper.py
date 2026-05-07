@@ -71,6 +71,8 @@ class TestMsgToScrapedItem:
         msg = self._base_msg(PreviousMessagesText="<p>old</p>")
         item = _msg_to_scraped_item(msg, thread_id="t1")
         assert item is not None
+        assert item.message_body_html == "<p>Hello</p>"
+        assert item.message_quoted_body_html == "<p>old</p>"
         assert '<div class="prev"><p>old</p></div>' in item.body_html
 
     def test_attachments_parsed(self):

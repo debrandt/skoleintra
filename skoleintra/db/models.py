@@ -91,6 +91,8 @@ class Item(Base):
     title: Mapped[str] = mapped_column(String(1024), nullable=False, default="")
     sender: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     body_html: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    message_body_html: Mapped[str | None] = mapped_column(Text, nullable=True)
+    message_quoted_body_html: Mapped[str | None] = mapped_column(Text, nullable=True)
     date: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
