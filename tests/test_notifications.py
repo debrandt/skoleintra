@@ -50,15 +50,16 @@ def test_message_notification_text_uses_presigned_attachment_links(monkeypatch):
         lambda s3_client, bucket, key: f"https://blob.example/{bucket}/{key}",
     )
     settings = SimpleNamespace(blob_s3_bucket="private-bucket")
+    fake_s3_client = SimpleNamespace()
 
-    plain = _plain_text_for(item, s3_client=object(), settings=settings)
+    plain = _plain_text_for(item, s3_client=fake_s3_client, settings=settings)
     assert "Attachments:" in plain
     assert (
         "worksheet.pdf: https://blob.example/private-bucket/child/message/worksheet.pdf"
         in plain
     )
 
-    markdown = _ntfy_markdown_for(item, s3_client=object(), settings=settings)
+    markdown = _ntfy_markdown_for(item, s3_client=fake_s3_client, settings=settings)
     assert "Attachments:" in markdown
     assert (
         "- worksheet.pdf: https://blob.example/private-bucket/child/message/worksheet.pdf"
@@ -71,7 +72,7 @@ def test_email_only_inlines_small_attachments(monkeypatch):
 
     class FakeSMTP:
         def __init__(self, *args, **kwargs):
-            del args, kwargs
+            _ = args, kwargs
 
         def send_message(self, msg):
             sent_messages.append(msg)
