@@ -183,6 +183,11 @@ def item_detail(request: Request, item_id: int, db: Session = Depends(get_db)):
             .order_by(Attachment.filename.asc())
         ).all()
     )
+    quoted_thread_html = None
+    if isinstance(item.raw_json, dict):
+        quoted = item.raw_json.get("_quoted_thread_html")
+        if isinstance(quoted, str) and quoted.strip():
+            quoted_thread_html = quoted
 
     return templates.TemplateResponse(
         request,
@@ -191,6 +196,7 @@ def item_detail(request: Request, item_id: int, db: Session = Depends(get_db)):
             "item": item,
             "child": child,
             "attachments": attachments,
+            "quoted_thread_html": quoted_thread_html,
         },
     )
 

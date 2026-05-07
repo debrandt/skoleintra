@@ -37,6 +37,7 @@ DEFAULT_NOTIFICATION_TYPES = (
     "photo_album",
     "weekplan",
 )
+EMAIL_INLINE_ATTACHMENT_MAX_BYTES = 2 * 1024 * 1024
 
 _DA_MONTHS = {
     "jan": 1,
@@ -341,11 +342,16 @@ def _send_email(
     msg["From"] = cfg.sender
     msg["To"] = ", ".join(cfg.recipients)
     msg["Subject"] = _subject_for(item)
-    msg.set_content(_plain_text_for(item))
+    msg.set_content(_plain_text_for(item, s3_client=s3_client, settings=settings))
 
     if s3_client is not None and settings is not None:
         for att in item.attachments:
             if att.blob_key:
+                if (
+                    att.size_bytes is not None
+                    and att.size_bytes > EMAIL_INLINE_ATTACHMENT_MAX_BYTES
+                ):
+                    continue
                 try:
                     data = download_blob(
                         s3_client, settings.blob_s3_bucket, att.blob_key
@@ -422,7 +428,9 @@ def _send_ntfy(
 
     response = requests.post(
         url,
-        data=_ntfy_markdown_for(item).encode("utf-8"),
+        data=_ntfy_markdown_for(
+            item, s3_client=s3_client, settings=settings
+        ).encode("utf-8"),
         headers=headers,
         timeout=20,
     )
@@ -461,7 +469,9 @@ def _subject_for(item: Item) -> str:
     return f"[Skoleintra:{item_type}] {title}"
 
 
-def _plain_text_for(item: Item) -> str:
+def _plain_text_for(
+    item: Item, s3_client=None, settings: Settings | None = None
+) -> str:
     title = _clean_text(item.title, default="(untitled)")
     sender = _clean_text(item.sender, default="unknown")
     item_type = _display_type_for_item(item)
@@ -481,10 +491,20 @@ def _plain_text_for(item: Item) -> str:
         lines.append("")
         lines.append(body_txt)
 
+    attachment_lines = _attachment_link_lines(
+        item, s3_client=s3_client, settings=settings
+    )
+    if attachment_lines:
+        lines.append("")
+        lines.append("Attachments:")
+        lines.extend(attachment_lines)
+
     return "\n".join(lines)
 
 
-def _ntfy_markdown_for(item: Item) -> str:
+def _ntfy_markdown_for(
+    item: Item, s3_client=None, settings: Settings | None = None
+) -> str:
     title = _clean_text(item.title, default="(untitled)")
     sender = _clean_text(item.sender, default="unknown")
     item_type = _display_type_for_item(item)
@@ -504,7 +524,44 @@ def _ntfy_markdown_for(item: Item) -> str:
         lines.append("")
         lines.append(body_txt)
 
+    attachment_lines = _attachment_link_lines(
+        item, s3_client=s3_client, settings=settings
+    )
+    if attachment_lines:
+        lines.append("")
+        lines.append("Attachments:")
+        lines.extend(f"- {line}" for line in attachment_lines)
+
     return "\n".join(lines)
+
+
+def _attachment_link_lines(
+    item: Item, s3_client=None, settings: Settings | None = None
+) -> list[str]:
+    if item.type != "message":
+        return []
+
+    lines: list[str] = []
+    for att in item.attachments:
+        link = None
+        if att.blob_key and s3_client is not None and settings is not None:
+            try:
+                link = generate_presigned_url(
+                    s3_client, settings.blob_s3_bucket, att.blob_key
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Could not generate presigned URL for message attachment %s: %s",
+                    att.blob_key,
+                    exc,
+                )
+        if link is None and att.url:
+            link = att.url
+        if not link:
+            continue
+        name = _clean_text(att.filename, default=link)
+        lines.append(f"{name}: {link}")
+    return lines
 
 
 def _ntfy_tags_for_item(item: Item) -> list[str]:

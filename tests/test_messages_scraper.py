@@ -71,7 +71,9 @@ class TestMsgToScrapedItem:
         msg = self._base_msg(PreviousMessagesText="<p>old</p>")
         item = _msg_to_scraped_item(msg, thread_id="t1")
         assert item is not None
-        assert '<div class="prev"><p>old</p></div>' in item.body_html
+        assert '<div class="prev"><p>old</p></div>' not in item.body_html
+        assert item.raw_json is not None
+        assert item.raw_json["_quoted_thread_html"] == "<p>old</p>"
 
     def test_attachments_parsed(self):
         msg = self._base_msg(

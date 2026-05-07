@@ -28,6 +28,13 @@
   {% endif %}
 </section>
 
+{% if quoted_thread_html %}
+<section class="card">
+  <h2>Quoted thread context</h2>
+  <article>{{ quoted_thread_html | safe }}</article>
+</section>
+{% endif %}
+
 <section class="card">
   <h2>Attachments</h2>
   {% if attachments %}

@@ -158,8 +158,6 @@ def _msg_to_scraped_item(msg: dict, thread_id: str) -> ScrapedItem | None:
     base_text = _normalize_text(msg.get("BaseText") or "")
     prev_text = _normalize_text(msg.get("PreviousMessagesText") or "")
     body_html = f'<div class="base">{base_text}</div>\n'
-    if prev_text:
-        body_html += f'<div class="prev">{prev_text}</div>\n'
 
     date = _parse_date(msg.get("SentReceivedDateText"))
 
@@ -170,6 +168,10 @@ def _msg_to_scraped_item(msg: dict, thread_id: str) -> ScrapedItem | None:
         if href:
             attachments.append(ScrapedAttachment(filename=text, url=href))
 
+    raw_json = dict(msg)
+    if prev_text:
+        raw_json["_quoted_thread_html"] = prev_text
+
     return ScrapedItem(
         type=ITEM_TYPE,
         external_id=external_id,
@@ -177,7 +179,7 @@ def _msg_to_scraped_item(msg: dict, thread_id: str) -> ScrapedItem | None:
         sender=sender,
         body_html=body_html,
         date=date,
-        raw_json=msg,
+        raw_json=raw_json,
         attachments=attachments,
     )
 
