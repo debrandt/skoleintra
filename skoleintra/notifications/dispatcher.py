@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.message import EmailMessage
-from typing import Callable
+from typing import Any, Callable
 
 import requests
 from bs4 import BeautifulSoup
@@ -470,7 +470,7 @@ def _subject_for(item: Item) -> str:
 
 
 def _plain_text_for(
-    item: Item, s3_client=None, settings: Settings | None = None
+    item: Item, s3_client: Any | None = None, settings: Settings | None = None
 ) -> str:
     title = _clean_text(item.title, default="(untitled)")
     sender = _clean_text(item.sender, default="unknown")
@@ -503,7 +503,7 @@ def _plain_text_for(
 
 
 def _ntfy_markdown_for(
-    item: Item, s3_client=None, settings: Settings | None = None
+    item: Item, s3_client: Any | None = None, settings: Settings | None = None
 ) -> str:
     title = _clean_text(item.title, default="(untitled)")
     sender = _clean_text(item.sender, default="unknown")
@@ -536,7 +536,7 @@ def _ntfy_markdown_for(
 
 
 def _attachment_link_lines(
-    item: Item, s3_client=None, settings: Settings | None = None
+    item: Item, s3_client: Any | None = None, settings: Settings | None = None
 ) -> list[str]:
     if item.type != "message":
         return []
